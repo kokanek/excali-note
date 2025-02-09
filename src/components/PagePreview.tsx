@@ -51,6 +51,37 @@ export function PagePreview({ page, isActive, onClick }: PagePreviewProps) {
             options
           );
           break;
+        case 'text': {
+          // Use the canvas context directly for text
+          if (!ctx) return;
+          
+          // Scale the font size
+          const scaledFontSize = (element.fontSize || 20) * SCALE_FACTOR;
+          ctx.font = `${scaledFontSize}px ${element.fontFamily === 1 ? 'sans-serif' : 'serif'}`;
+          ctx.fillStyle = element.strokeColor || '#000000';
+          ctx.textAlign = element.textAlign as CanvasTextAlign || 'left';
+          
+          // Draw the text at the scaled position
+          ctx.fillText(
+            element.text,
+            scaledElement.x,
+            scaledElement.y + scaledFontSize, // Add scaled font size to y to account for baseline
+          );
+          break;
+        }
+        case 'diamond': {
+          // For a diamond, we need to create a path from the midpoints of each side
+          const midX = scaledElement.x + scaledElement.width / 2;
+          const midY = scaledElement.y + scaledElement.height / 2;
+          const points: [number, number][] = [
+            [midX, scaledElement.y], // top
+            [scaledElement.x + scaledElement.width, midY], // right
+            [midX, scaledElement.y + scaledElement.height], // bottom
+            [scaledElement.x, midY], // left
+          ];
+          rc.polygon(points, options);
+          break;
+        }
         case 'ellipse':
           rc.ellipse(
             scaledElement.x + scaledElement.width / 2,
@@ -62,44 +93,44 @@ export function PagePreview({ page, isActive, onClick }: PagePreviewProps) {
           break;
         case 'line':
         case 'arrow': {
-          // Get start and end points from the element
-          const [x1, y1] = element.points[0];
-          const [x2, y2] = element.points[element.points.length - 1];
+          // Get start and end points from the element and add the element's x,y offset
+          const [relX1, relY1] = element.points[0];
+          const [relX2, relY2] = element.points[element.points.length - 1];
           
-          // Scale the points
-          const scaledX1 = x1 * SCALE_FACTOR;
-          const scaledY1 = y1 * SCALE_FACTOR;
-          const scaledX2 = x2 * SCALE_FACTOR;
-          const scaledY2 = y2 * SCALE_FACTOR;
+          // Add the element's x,y offset to get absolute coordinates
+          const x1 = (element.x + relX1) * SCALE_FACTOR;
+          const y1 = (element.y + relY1) * SCALE_FACTOR;
+          const x2 = (element.x + relX2) * SCALE_FACTOR;
+          const y2 = (element.y + relY2) * SCALE_FACTOR;
           
           // Draw the main line
           rc.line(
-            scaledX1,
-            scaledY1,
-            scaledX2,
-            scaledY2,
+            x1,
+            y1,
+            x2,
+            y2,
             options
           );
           
-          if (element.type === 'arrow') {
+          if (element.type === 'arrow' && element.endArrowhead === 'arrow') {
             // Calculate arrow angle
-            const angle = Math.atan2(scaledY2 - scaledY1, scaledX2 - scaledX1);
+            const angle = Math.atan2(y2 - y1, x2 - x1);
             const arrowLength = 10 * SCALE_FACTOR;
             const arrowAngle = Math.PI / 6;
             
             // Draw arrowhead
             rc.line(
-              scaledX2,
-              scaledY2,
-              scaledX2 - arrowLength * Math.cos(angle - arrowAngle),
-              scaledY2 - arrowLength * Math.sin(angle - arrowAngle),
+              x2,
+              y2,
+              x2 - arrowLength * Math.cos(angle - arrowAngle),
+              y2 - arrowLength * Math.sin(angle - arrowAngle),
               options
             );
             rc.line(
-              scaledX2,
-              scaledY2,
-              scaledX2 - arrowLength * Math.cos(angle + arrowAngle),
-              scaledY2 - arrowLength * Math.sin(angle + arrowAngle),
+              x2,
+              y2,
+              x2 - arrowLength * Math.cos(angle + arrowAngle),
+              y2 - arrowLength * Math.sin(angle + arrowAngle),
               options
             );
           }
@@ -108,8 +139,8 @@ export function PagePreview({ page, isActive, onClick }: PagePreviewProps) {
         case 'freedraw':
           if (element.points && element.points.length > 1) {
             const scaledPoints = element.points.map(([x, y]: [number, number]) => [
-              x * SCALE_FACTOR,
-              y * SCALE_FACTOR
+              (element.x + x) * SCALE_FACTOR,
+              (element.y + y) * SCALE_FACTOR
             ]);
             
             rc.curve(scaledPoints, options);

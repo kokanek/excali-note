@@ -17,11 +17,11 @@ function App() {
   const currentPage = useMemo(() => pages[currentPageIndex], [pages, currentPageIndex]);
 
   const handlePageChange = (elements: any[]) => {
-    console.log('elements', elements[0]);
-    console.log('stored', pages[currentPageIndex].elements[0]);
+    console.log('elements', elements);
+    console.log('stored', pages[currentPageIndex].elements);
     const newPages = cloneDeep(pages);
 
-    const areElementsEqual = isEqual(pages[currentPageIndex].elements[0], elements[0]);
+    const areElementsEqual = isEqual(pages[currentPageIndex].elements, elements);
     if (areElementsEqual) {
       console.log('elements are equal, not updating');
       return;
