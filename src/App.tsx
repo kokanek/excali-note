@@ -5,7 +5,7 @@ import { PagePreview } from './components/PagePreview';
 import type { Page } from './types';
 import { cloneDeep, isEqual } from 'lodash';
 
-const INITIAL_PAGES: Page[] = Array(4).fill(null).map((_, index) => ({
+const INITIAL_PAGES: Page[] = Array(1).fill(null).map((_, index) => ({
   id: `page-${index + 1}`,
   elements: [],
   appState: {
@@ -106,12 +106,13 @@ function App() {
         <div className="flex-1 overflow-y-auto p-4">
           {pages.map((page, index) => (
             <PagePreview
-              onPageDelete={() => handleDelete(page.id)}
-              pageId={page.id}
               key={page.id}
               page={page}
-              isActive={index === currentPageIndex}
-              onClick={() => handlePageClick(index)}
+              pageId={page.id}
+              isActive={currentPageIndex === index}
+              onClick={() => setCurrentPageIndex(index)}
+              onPageDelete={handleDelete}
+              pageNumber={index + 1}
             />
           ))}
         </div>
