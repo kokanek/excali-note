@@ -7,15 +7,23 @@ interface PagePreviewProps {
   page: Page;
   isActive: boolean;
   onClick: () => void;
+  onPageDelete: (pageId: string) => void;
+  pageId: string;
 }
 
 // Scale factor for preview (A4 dimensions: 595x842)
 const PREVIEW_WIDTH = 200;
 const SCALE_FACTOR = PREVIEW_WIDTH / 595;
 
-export function PagePreview({ page, isActive, onClick }: PagePreviewProps) {
+export function PagePreview({ page, isActive, onClick, onPageDelete, pageId }: PagePreviewProps) {
   console.log('PagePreview rendered', page);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const handleDelete = (pageId: string) => {
+    if (window.confirm("Are you sure you want to delete this page?")) {
+      onPageDelete(pageId);
+    }
+  };
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -165,7 +173,7 @@ export function PagePreview({ page, isActive, onClick }: PagePreviewProps) {
   return (
     <div 
       onClick={onClick}
-      className={`w-full aspect-[1/1.414] mb-4 cursor-pointer transition-all ${
+      className={`group relative w-full aspect-[1/1.414] mb-4 cursor-pointer transition-all ${
         isActive ? 'ring-2 ring-blue-500' : 'hover:ring-2 hover:ring-blue-300 border-2 border-gray-200'
       }`}
     >
@@ -175,6 +183,26 @@ export function PagePreview({ page, isActive, onClick }: PagePreviewProps) {
         height={PREVIEW_WIDTH * 1.414} // A4 aspect ratio
         className="w-full h-full"
       />
+      <button
+        onClick={() => handleDelete(pageId)}
+        className="absolute top-2 right-2 p-1.5 bg-red-500 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+        title="Delete page"
+      >
+        <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          className="h-4 w-4" 
+          fill="none" 
+          viewBox="0 0 24 24" 
+          stroke="currentColor"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={2} 
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" 
+          />
+        </svg>
+      </button>
     </div>
   );
 }
