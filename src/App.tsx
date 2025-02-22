@@ -1,13 +1,14 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Excalidraw } from '@excalidraw/excalidraw';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { PagePreview } from './components/PagePreview';
 import type { Page } from './types';
-import { cloneDeep, isEqual } from 'lodash';
+import { cloneDeep, isEqual, debounce } from 'lodash';
 
 const INITIAL_PAGES: Page[] = Array(1).fill(null).map((_, index) => ({
   id: `page-${index + 1}`,
   elements: [],
+  files: {},
   appState: {
     viewBackgroundColor: "#ffffff"
   }
@@ -19,25 +20,41 @@ function App() {
 
   const currentPage = useMemo(() => pages[currentPageIndex], [pages, currentPageIndex]);
 
-  const handleChange = (elements: any[]) => {
-    console.log('elements', elements);
-    console.log('stored', pages[currentPageIndex].elements);
-    const newPages = cloneDeep(pages);
+  const handleChange = useMemo(
+    () =>
+      debounce((elements: any[], appState: any, files: any[]) => {
+        console.log('elements', elements, pages[currentPageIndex].elements);
 
-    const areElementsEqual = isEqual(pages[currentPageIndex].elements, elements);
-    if (areElementsEqual) {
-      console.log('elements are equal, not updating');
-      return;
-    }
+        if (elements.length === 0) {
+          console.log('elements array empty')
+        }
+        const newPages = cloneDeep(pages);
 
-    newPages[currentPageIndex] = {
-      elements: cloneDeep(elements),
-      id: pages[currentPageIndex].id
+        const areElementsEqual = isEqual(pages[currentPageIndex].elements, elements);
+        if (areElementsEqual) {
+          console.log('elements are equal, not updating');
+          return;
+        }
+
+        newPages[currentPageIndex] = {
+          elements: cloneDeep(elements),
+          id: pages[currentPageIndex].id,
+          appState: pages[currentPageIndex].appState,
+          files: cloneDeep(files)
+        };
+
+        console.log('updating...');
+        setPages(newPages);
+      }, 200),
+    [pages, currentPageIndex]
+  );
+
+  // Cleanup the debounced function when the component unmounts
+  useEffect(() => {
+    return () => {
+      handleChange.cancel();
     };
-
-    console.log('updating...');
-    setPages(newPages);
-  };
+  }, [handleChange]);
 
   const goToNextPage = useCallback(() => {
     if (currentPageIndex < pages.length - 1) {
@@ -59,14 +76,47 @@ function App() {
   const excalidrawKey = useMemo(() => `excalidraw-${currentPageIndex}`, [currentPageIndex]);
 
   console.log('App rendered');
-  function handleDelete(id: string): void {
-    console.log('called delete for id:', id);
-    console.log('pages before deleting: ', pages);
-    const pageIndex = pages.findIndex(page => page.id === id);
+  function handleDelete(deletionId: string): void {
+    // Don't allow deleting the last page
+    if (pages.length <= 1) return;
+
+    const deletionPageIndex = pages.findIndex(page => page.id === deletionId);
+    if (deletionPageIndex === -1) return;
+
+    const newPages = pages.filter(page => page.id !== deletionId);
+
+    // Handle other cases
+    if (deletionPageIndex < currentPageIndex) {
+      setCurrentPageIndex(currentPageIndex - 1);
+    } else if (deletionPageIndex === currentPageIndex) {
+      const newIndex = Math.min(currentPageIndex, newPages.length - 1);
+      setCurrentPageIndex(newIndex);
+    }
+
+    setPages(newPages);
+  }
+
+  // Add this function to handle page reordering
+  function handlePageMove(pageId: string, direction: 'up' | 'down'): void {
+    const pageIndex = pages.findIndex(page => page.id === pageId);
     if (pageIndex === -1) return;
 
-    const newPages = pages.filter(page => page.id !== id);
-    console.log('pages after deleting the page', newPages);
+    const newPages = [...pages];
+    const newIndex = direction === 'up' ? pageIndex - 1 : pageIndex + 1;
+
+    // Check bounds
+    if (newIndex < 0 || newIndex >= pages.length) return;
+
+    // Swap pages
+    [newPages[pageIndex], newPages[newIndex]] = [newPages[newIndex], newPages[pageIndex]];
+
+    // Update current page index if we moved the current page
+    if (pageIndex === currentPageIndex) {
+      setCurrentPageIndex(newIndex);
+    } else if (newIndex === currentPageIndex) {
+      setCurrentPageIndex(pageIndex);
+    }
+
     setPages(newPages);
   }
 
@@ -112,7 +162,10 @@ function App() {
               isActive={currentPageIndex === index}
               onClick={() => setCurrentPageIndex(index)}
               onPageDelete={handleDelete}
+              onPageMove={handlePageMove}
               pageNumber={index + 1}
+              isFirst={index === 0}
+              isLast={index === pages.length - 1}
             />
           ))}
         </div>
