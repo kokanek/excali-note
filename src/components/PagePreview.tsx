@@ -74,21 +74,35 @@ export function PagePreview({
           );
           break;
         case 'text': {
-          // Use the canvas context directly for text
           if (!ctx) return;
           
           // Scale the font size
           const scaledFontSize = (element.fontSize || 20) * SCALE_FACTOR;
           ctx.font = `${scaledFontSize}px ${element.fontFamily === 1 ? 'sans-serif' : 'serif'}`;
           ctx.fillStyle = element.strokeColor || '#000000';
-          ctx.textAlign = element.textAlign as CanvasTextAlign || 'left';
+          ctx.textAlign =  'left';
           
-          // Draw the text at the scaled position
-          ctx.fillText(
-            element.text,
-            scaledElement.x,
-            scaledElement.y + scaledFontSize, // Add scaled font size to y to account for baseline
-          );
+          // Text wrapping function
+          const words = element.text.split(' ');
+          let line = '';
+          let y = scaledElement.y + scaledFontSize;
+          
+          for (let word of words) {
+            const testLine = line + (line ? ' ' : '') + word;
+            const metrics = ctx.measureText(testLine);
+            
+            if (metrics.width > scaledElement.width && line) {
+              ctx.fillText(line, scaledElement.x, y);
+              line = word;
+              y += scaledFontSize * 1.2; // Add line spacing
+            } else {
+              line = testLine;
+            }
+          }
+          // Draw the last line
+          if (line) {
+            ctx.fillText(line, scaledElement.x, y);
+          }
           break;
         }
         case 'diamond': {
