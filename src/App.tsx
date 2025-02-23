@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { PagePreview } from './components/PagePreview';
 import type { Page } from './types';
 import { cloneDeep, isEqual, debounce } from 'lodash';
+const STORAGE_KEY = 'excali_note';
 
 const INITIAL_PAGES: Page[] = Array(1).fill(null).map((_, index) => ({
   id: `page-${index + 1}`,
@@ -15,10 +16,32 @@ const INITIAL_PAGES: Page[] = Array(1).fill(null).map((_, index) => ({
 }));
 
 function App() {
-  const [pages, setPages] = useState<Page[]>(INITIAL_PAGES);
+  const [pages, setPages] = useState<Page[]>(() => {
+    // Initialize state from session storage
+    const storedPages = sessionStorage.getItem(STORAGE_KEY);
+    if (storedPages) {
+      try {
+        return JSON.parse(storedPages);
+      } catch (error) {
+        console.error('Failed to parse stored pages:', error);
+      }
+    }
+    return INITIAL_PAGES; // default initial state if nothing in storage
+  });
+  
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
 
   const currentPage = useMemo(() => pages[currentPageIndex], [pages, currentPageIndex]);
+
+  // Add effect to save pages whenever they change
+  useEffect(() => {
+    // Save pages to session storage whenever they change
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(pages));
+    } catch (error) {
+      console.error('Failed to save pages to storage:', error);
+    }
+  }, [pages]); // This effect runs whenever pages changes
 
   const handleChange = useMemo(
     () =>
