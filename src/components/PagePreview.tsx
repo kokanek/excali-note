@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import rough from 'roughjs';
 import type { Page } from '../types';
-import { RoughPreview } from './RoughPreview';
 
 interface PagePreviewProps {
   page: Page;
@@ -87,7 +86,7 @@ export function PagePreview({
           let line = '';
           let y = scaledElement.y + scaledFontSize;
           
-          for (let word of words) {
+          for (const word of words) {
             const testLine = line + (line ? ' ' : '') + word;
             const metrics = ctx.measureText(testLine);
             
@@ -182,8 +181,8 @@ export function PagePreview({
             rc.curve(scaledPoints, options);
           }
           break;
-        case 'image':
-            let fileData = files[element.fileId];
+        case 'image': {
+            const fileData = files[element.fileId];
             if (fileData?.dataURL) {
               // Create a new image element
               const img = new Image();
@@ -202,11 +201,12 @@ export function PagePreview({
               };
             }
             break;
+          }
       }
     });
   });
 
-  function scaleElement(element: any) {
+  function scaleElement(element: Record<string, unknown>) {
     const scaled = { ...element };
     
     // Scale position and dimensions
