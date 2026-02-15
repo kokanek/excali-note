@@ -53,7 +53,7 @@ export function PagePreview({
     const { files } = page;
 
     // Render each element
-    page.elements.filter((element) => element.isDeleted === false).forEach(element => {
+    page.elements.filter((element) => !element.isDeleted).forEach(element => {
       const scaledElement = scaleElement(element);
       const options = {
         stroke: element.strokeColor || '#000000',
@@ -210,10 +210,10 @@ export function PagePreview({
     const scaled = { ...element };
     
     // Scale position and dimensions
-    if ('x' in element) scaled.x = element.x * SCALE_FACTOR;
-    if ('y' in element) scaled.y = element.y * SCALE_FACTOR;
-    if ('width' in element) scaled.width = element.width * SCALE_FACTOR;
-    if ('height' in element) scaled.height = element.height * SCALE_FACTOR;
+    if (typeof element.x === 'number') scaled.x = element.x * SCALE_FACTOR;
+    if (typeof element.y === 'number') scaled.y = element.y * SCALE_FACTOR;
+    if (typeof element.width === 'number') scaled.width = element.width * SCALE_FACTOR;
+    if (typeof element.height === 'number') scaled.height = element.height * SCALE_FACTOR;
     
     return scaled;
   }

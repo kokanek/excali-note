@@ -35,7 +35,7 @@ export function NotebookCard({ notebook, viewMode, onSelect, onDelete }: Noteboo
 
     // Render elements from the first page
     firstPage.elements
-      ?.filter((element) => element.isDeleted === false)
+      ?.filter((element) => !element.isDeleted)
       .forEach((element) => {
         const scaledElement = scaleElement(element);
         const options = {
@@ -172,10 +172,10 @@ export function NotebookCard({ notebook, viewMode, onSelect, onDelete }: Noteboo
 
   function scaleElement(element: Record<string, unknown>) {
     const scaled = { ...element };
-    if ('x' in element) scaled.x = element.x * SCALE_FACTOR;
-    if ('y' in element) scaled.y = element.y * SCALE_FACTOR;
-    if ('width' in element) scaled.width = element.width * SCALE_FACTOR;
-    if ('height' in element) scaled.height = element.height * SCALE_FACTOR;
+    if (typeof element.x === 'number') scaled.x = element.x * SCALE_FACTOR;
+    if (typeof element.y === 'number') scaled.y = element.y * SCALE_FACTOR;
+    if (typeof element.width === 'number') scaled.width = element.width * SCALE_FACTOR;
+    if (typeof element.height === 'number') scaled.height = element.height * SCALE_FACTOR;
     return scaled;
   }
 

@@ -19,9 +19,7 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
 
   const handleChange = useMemo(
     () =>
-      debounce((elements: unknown[], appState: unknown, files: unknown[]) => {
-        console.log('elements', elements, pages[currentPageIndex].elements);
-
+      debounce((elements: unknown[], appState: unknown, files: Record<string, unknown>) => {
         if (elements.length === 0) {
           console.log('elements array empty');
         }
@@ -29,7 +27,6 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
 
         const areElementsEqual = isEqual(pages[currentPageIndex].elements, elements);
         if (areElementsEqual) {
-          console.log('elements are equal, not updating');
           return;
         }
 
@@ -40,7 +37,6 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
           files: cloneDeep(files),
         };
 
-        console.log('updating...');
         onPagesChange(newPages);
       }, 200),
     [pages, currentPageIndex, onPagesChange]
@@ -67,8 +63,6 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
 
   // Key prop forces Excalidraw to re-render when page changes
   const excalidrawKey = useMemo(() => `excalidraw-${currentPageIndex}`, [currentPageIndex]);
-
-  console.log('NotebookEditor rendered');
 
   function handleDelete(deletionId: string): void {
     // Don't allow deleting the last page
