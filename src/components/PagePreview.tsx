@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import rough from 'roughjs';
 import type { Page } from '../types';
-import { RoughPreview } from './RoughPreview';
 
 interface PagePreviewProps {
   page: Page;
@@ -54,7 +53,7 @@ export function PagePreview({
     const { files } = page;
 
     // Render each element
-    page.elements.filter((element) => element.isDeleted === false).forEach(element => {
+    page.elements.filter((element) => !element.isDeleted).forEach(element => {
       const scaledElement = scaleElement(element);
       const options = {
         stroke: element.strokeColor || '#000000',
@@ -87,7 +86,7 @@ export function PagePreview({
           let line = '';
           let y = scaledElement.y + scaledFontSize;
           
-          for (let word of words) {
+          for (const word of words) {
             const testLine = line + (line ? ' ' : '') + word;
             const metrics = ctx.measureText(testLine);
             
@@ -182,8 +181,8 @@ export function PagePreview({
             rc.curve(scaledPoints, options);
           }
           break;
-        case 'image':
-            let fileData = files[element.fileId];
+        case 'image': {
+            const fileData = files[element.fileId];
             if (fileData?.dataURL) {
               // Create a new image element
               const img = new Image();
@@ -202,18 +201,19 @@ export function PagePreview({
               };
             }
             break;
+          }
       }
     });
   });
 
-  function scaleElement(element: any) {
+  function scaleElement(element: Record<string, unknown>) {
     const scaled = { ...element };
     
     // Scale position and dimensions
-    if ('x' in element) scaled.x = element.x * SCALE_FACTOR;
-    if ('y' in element) scaled.y = element.y * SCALE_FACTOR;
-    if ('width' in element) scaled.width = element.width * SCALE_FACTOR;
-    if ('height' in element) scaled.height = element.height * SCALE_FACTOR;
+    if (typeof element.x === 'number') scaled.x = element.x * SCALE_FACTOR;
+    if (typeof element.y === 'number') scaled.y = element.y * SCALE_FACTOR;
+    if (typeof element.width === 'number') scaled.width = element.width * SCALE_FACTOR;
+    if (typeof element.height === 'number') scaled.height = element.height * SCALE_FACTOR;
     
     return scaled;
   }
