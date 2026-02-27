@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Excalidraw } from '@excalidraw/excalidraw';
-import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
+import { Excalidraw, exportToBlob } from '@excalidraw/excalidraw';
+import { ChevronLeft, ChevronRight, Home, Download } from 'lucide-react';
 import { PagePreview } from './PagePreview';
 import type { Page } from '../types';
 import { cloneDeep, isEqual, debounce } from 'lodash';
@@ -108,6 +108,25 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
     onPagesChange(newPages);
   }
 
+  async function handleDownload(): Promise<void> {
+    try {
+      const blob = await exportToBlob({
+        elements: currentPage.elements as Parameters<typeof exportToBlob>[0]['elements'],
+        appState: currentPage.appState as Parameters<typeof exportToBlob>[0]['appState'],
+        files: (currentPage.files ?? null) as Parameters<typeof exportToBlob>[0]['files'],
+        mimeType: 'image/png',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${notebookName}-page-${currentPageIndex + 1}.png`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      console.error('Failed to download page:', err);
+    }
+  }
+
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar with previews */}
@@ -191,6 +210,14 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
               <ChevronLeft className="w-6 h-6" />
             </button>
           </div>
+          <div className="relative">
+            <button
+              onClick={handleDownload}
+              className="absolute top-2 left-2 z-10 p-1.5 rounded bg-white shadow hover:bg-gray-100 border border-gray-200"
+              title="Download page as PNG"
+            >
+              <Download className="w-4 h-4" />
+            </button>
           <div
             className="w-[600px] h-[800px] bg-white shadow-lg"
             onWheel={(e) => e.stopPropagation()}
@@ -215,6 +242,7 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
                 },
               }}
             />
+          </div>
           </div>
           <div className="flex flex-col ml-1 justify-center p-4 bg-white border-r border-gray-200">
             <button
