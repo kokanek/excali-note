@@ -1,6 +1,7 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Excalidraw } from '@excalidraw/excalidraw';
-import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { Excalidraw, exportToCanvas, getCommonBounds } from '@excalidraw/excalidraw';
+import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/types';
+import { ChevronLeft, ChevronRight, Home, Download } from 'lucide-react';
 import { PagePreview } from './PagePreview';
 import type { Page } from '../types';
 import { cloneDeep, isEqual, debounce } from 'lodash';
@@ -14,6 +15,7 @@ interface NotebookEditorProps {
 
 export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: NotebookEditorProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const excalidrawAPIRef = useRef<ExcalidrawImperativeAPI | null>(null);
 
   const currentPage = useMemo(() => pages[currentPageIndex], [pages, currentPageIndex]);
 
@@ -108,6 +110,58 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
     onPagesChange(newPages);
   }
 
+  const setExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI) => {
+    excalidrawAPIRef.current = api;
+  }, []);
+
+  async function handleDownload(): Promise<void> {
+    const PAGE_WIDTH = 600;
+    const PAGE_HEIGHT = 800;
+    try {
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = PAGE_WIDTH;
+      pageCanvas.height = PAGE_HEIGHT;
+      const ctx = pageCanvas.getContext('2d')!;
+
+      // Fill white background matching the page
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+
+      const elements = currentPage.elements as Parameters<typeof exportToCanvas>[0]['elements'];
+      if (elements.length > 0) {
+        const elemCanvas = await exportToCanvas({
+          elements,
+          appState: currentPage.appState as Parameters<typeof exportToCanvas>[0]['appState'],
+          files: (currentPage.files ?? null) as Parameters<typeof exportToCanvas>[0]['files'],
+          exportPadding: 0,
+        });
+
+        // Get Excalidraw scroll offsets so elements land at their correct position on the page
+        const appState = excalidrawAPIRef.current?.getAppState();
+        const scrollX = appState?.scrollX ?? 0;
+        const scrollY = appState?.scrollY ?? 0;
+
+        // getCommonBounds returns [minX, minY, maxX, maxY] in scene coordinates
+        const [minX, minY] = getCommonBounds(elements);
+
+        // scene → screen: screenX = sceneX + scrollX
+        ctx.drawImage(elemCanvas, Math.round(minX + scrollX), Math.round(minY + scrollY));
+      }
+
+      pageCanvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${notebookName}-page-${currentPageIndex + 1}.png`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }, 'image/png');
+    } catch (err) {
+      console.error('Failed to download page:', err);
+    }
+  }
+
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar with previews */}
@@ -191,6 +245,14 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
               <ChevronLeft className="w-6 h-6" />
             </button>
           </div>
+          <div className="relative">
+            <button
+              onClick={handleDownload}
+              className="absolute top-2 left-2 z-10 p-1.5 rounded bg-white shadow hover:bg-gray-100 border border-gray-200"
+              title="Download page as PNG"
+            >
+              <Download className="w-4 h-4" />
+            </button>
           <div
             className="w-[600px] h-[800px] bg-white shadow-lg"
             onWheel={(e) => e.stopPropagation()}
@@ -201,6 +263,7 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
           >
             <Excalidraw
               key={excalidrawKey}
+              excalidrawAPI={setExcalidrawAPI}
               initialData={{
                 elements: currentPage.elements,
               }}
@@ -215,6 +278,7 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
                 },
               }}
             />
+          </div>
           </div>
           <div className="flex flex-col ml-1 justify-center p-4 bg-white border-r border-gray-200">
             <button
