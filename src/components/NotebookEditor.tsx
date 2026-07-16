@@ -81,6 +81,7 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
   const [pageHeight, setPageHeight] = useState(PAGE_HEIGHT);
   const excalidrawAPIRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const canvasAreaRef = useRef<HTMLDivElement>(null);
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
 
   const currentPage = useMemo(() => pages[currentPageIndex], [pages, currentPageIndex]);
 
@@ -129,6 +130,33 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
     };
   }, [applyZoom, currentPageIndex]);
 
+  // Block panning: Space (and the hand tool's "h" key) let the user pan the
+  // canvas, which breaks the fixed page / notebook feel. Intercept these on the
+  // canvas in the capture phase before Excalidraw's own handler sees them.
+  // Leave typing untouched (text editor) and leave the rest of the app alone.
+  useEffect(() => {
+    const onKeyDownCapture = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      // Don't interfere with typing into the text editor / inputs.
+      if (
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'INPUT' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+      // Only act on keys aimed at the canvas area.
+      if (!canvasWrapRef.current?.contains(target)) return;
+      if (e.code === 'Space' || e.key === ' ' || e.key === 'h' || e.key === 'H') {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener('keydown', onKeyDownCapture, true);
+    return () => window.removeEventListener('keydown', onKeyDownCapture, true);
+  }, []);
+
   // Debounced persistence of element changes to the notebook store.
   const persistChange = useMemo(
     () =>
@@ -158,11 +186,19 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
       const state = appState as Record<string, unknown>;
       setSnapshot(computeSnapshot(elements as readonly SceneElement[], state));
 
-      // Re-assert the locked zoom if Excalidraw drifted from it (it resets to 1
-      // on init). Guard on a tolerance so this doesn't loop.
+      // Keep the view locked to the page: re-assert zoom if Excalidraw drifted
+      // from it (it resets to 1 on init) and snap scroll back to the origin so
+      // any stray pan can't move the page. Guarded so this doesn't loop.
       const api = excalidrawAPIRef.current;
       const currentZoom = (state.zoom as { value?: number } | undefined)?.value ?? 1;
-      if (api && Math.abs(currentZoom - zoomValue) > 1e-3) {
+      const scrollX = (state.scrollX as number) ?? 0;
+      const scrollY = (state.scrollY as number) ?? 0;
+      if (
+        api &&
+        (Math.abs(currentZoom - zoomValue) > 1e-3 ||
+          Math.abs(scrollX) > 0.5 ||
+          Math.abs(scrollY) > 0.5)
+      ) {
         api.updateScene({
           appState: { zoom: { value: zoomValue as NormalizedZoomValue }, scrollX: 0, scrollY: 0 },
         });
@@ -480,6 +516,7 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
             </button>
           </div>
           <div
+            ref={canvasWrapRef}
             className="notebook-canvas bg-white shadow-lg"
             onWheel={(e) => e.stopPropagation()}
             onWheelCapture={(e) => {
