@@ -3,8 +3,58 @@ import { Excalidraw, exportToCanvas, getCommonBounds } from '@excalidraw/excalid
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/types';
 import { ChevronLeft, ChevronRight, Home, Download } from 'lucide-react';
 import { PagePreview } from './PagePreview';
+import { EditorControls, type ControlsSnapshot } from './EditorControls';
 import type { Page } from '../types';
 import { cloneDeep, isEqual, debounce } from 'lodash';
+
+// Loose element shape — Excalidraw elements carry many fields we don't model.
+type SceneElement = Record<string, unknown> & { id: string; type: string };
+
+const DEFAULT_SNAPSHOT: ControlsSnapshot = {
+  activeTool: 'selection',
+  selectedCount: 0,
+  hasText: false,
+  strokeColor: '#1e1e1e',
+  backgroundColor: 'transparent',
+  strokeWidth: 1,
+  fillStyle: 'hachure',
+  opacity: 100,
+  fontSize: 20,
+};
+
+// New version metadata so updateScene actually re-renders the mutated element.
+const bumpVersion = (el: SceneElement) => ({
+  version: ((el.version as number) ?? 1) + 1,
+  versionNonce: Math.floor(Math.random() * 2 ** 31),
+  updated: Date.now(),
+});
+
+function computeSnapshot(
+  elements: readonly SceneElement[],
+  appState: Record<string, unknown>
+): ControlsSnapshot {
+  const selectedIds = (appState.selectedElementIds ?? {}) as Record<string, boolean>;
+  const selected = elements.filter((el) => selectedIds[el.id] && !el.isDeleted);
+  const has = selected.length > 0;
+  const first = selected[0];
+  const activeTool = ((appState.activeTool as { type?: string })?.type ?? 'selection') as string;
+  const pick = <T,>(elKey: string, curKey: string): T =>
+    (has ? (first[elKey] as T) : (appState[curKey] as T));
+  const textEl = selected.find((el) => el.type === 'text');
+
+  return {
+    activeTool,
+    selectedCount: selected.length,
+    hasText: has ? Boolean(textEl) : activeTool === 'text',
+    strokeColor: pick<string>('strokeColor', 'currentItemStrokeColor') ?? '#1e1e1e',
+    backgroundColor: pick<string>('backgroundColor', 'currentItemBackgroundColor') ?? 'transparent',
+    strokeWidth: pick<number>('strokeWidth', 'currentItemStrokeWidth') ?? 1,
+    fillStyle: pick<string>('fillStyle', 'currentItemFillStyle') ?? 'hachure',
+    opacity: pick<number>('opacity', 'currentItemOpacity') ?? 100,
+    fontSize:
+      (textEl?.fontSize as number) ?? (appState.currentItemFontSize as number) ?? 20,
+  };
+}
 
 interface NotebookEditorProps {
   pages: Page[];
@@ -15,23 +65,21 @@ interface NotebookEditorProps {
 
 export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: NotebookEditorProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [snapshot, setSnapshot] = useState<ControlsSnapshot>(DEFAULT_SNAPSHOT);
   const excalidrawAPIRef = useRef<ExcalidrawImperativeAPI | null>(null);
 
   const currentPage = useMemo(() => pages[currentPageIndex], [pages, currentPageIndex]);
 
-  const handleChange = useMemo(
+  // Debounced persistence of element changes to the notebook store.
+  const persistChange = useMemo(
     () =>
-      debounce((elements: unknown[], appState: unknown, files: Record<string, unknown>) => {
-        if (elements.length === 0) {
-          console.log('elements array empty');
-        }
-        const newPages = cloneDeep(pages);
-
+      debounce((elements: unknown[], files: Record<string, unknown>) => {
         const areElementsEqual = isEqual(pages[currentPageIndex].elements, elements);
         if (areElementsEqual) {
           return;
         }
 
+        const newPages = cloneDeep(pages);
         newPages[currentPageIndex] = {
           elements: cloneDeep(elements),
           id: pages[currentPageIndex].id,
@@ -44,12 +92,93 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
     [pages, currentPageIndex, onPagesChange]
   );
 
+  // Fired on every Excalidraw change: reflect state into our custom rail
+  // (immediately) and persist element changes (debounced).
+  const handleChange = useCallback(
+    (elements: readonly unknown[], appState: unknown, files: Record<string, unknown>) => {
+      setSnapshot(
+        computeSnapshot(
+          elements as readonly SceneElement[],
+          appState as Record<string, unknown>
+        )
+      );
+      persistChange(elements as unknown[], files);
+    },
+    [persistChange]
+  );
+
   // Cleanup the debounced function when the component unmounts
   useEffect(() => {
     return () => {
-      handleChange.cancel();
+      persistChange.cancel();
     };
-  }, [handleChange]);
+  }, [persistChange]);
+
+  // ---- Control rail bridge: drive Excalidraw through its public API ----
+
+  const setTool = useCallback((tool: string) => {
+    excalidrawAPIRef.current?.setActiveTool({ type: tool as 'selection' });
+    setSnapshot((prev) => ({ ...prev, activeTool: tool }));
+  }, []);
+
+  // Apply a property patch to all selected elements and set the matching
+  // currentItem default (so newly drawn elements inherit it too).
+  const applyProps = useCallback(
+    (
+      elementPatch: (el: SceneElement) => Record<string, unknown> | null,
+      appStatePatch: Record<string, unknown>
+    ) => {
+      const api = excalidrawAPIRef.current;
+      if (!api) return;
+      const appState = api.getAppState() as unknown as Record<string, unknown>;
+      const selectedIds = (appState.selectedElementIds ?? {}) as Record<string, boolean>;
+      const elements = api.getSceneElements() as unknown as SceneElement[];
+
+      const updated = elements.map((el) => {
+        if (!selectedIds[el.id]) return el;
+        const patch = elementPatch(el);
+        if (!patch) return el;
+        return { ...el, ...patch, ...bumpVersion(el) };
+      });
+
+      api.updateScene({
+        elements: updated as unknown as Parameters<typeof api.updateScene>[0]['elements'],
+        appState: appStatePatch as Parameters<typeof api.updateScene>[0]['appState'],
+        commitToHistory: true,
+      });
+    },
+    []
+  );
+
+  const setStrokeColor = useCallback(
+    (color: string) => applyProps(() => ({ strokeColor: color }), { currentItemStrokeColor: color }),
+    [applyProps]
+  );
+  const setBackground = useCallback(
+    (color: string) =>
+      applyProps(() => ({ backgroundColor: color }), { currentItemBackgroundColor: color }),
+    [applyProps]
+  );
+  const setStrokeWidth = useCallback(
+    (width: number) => applyProps(() => ({ strokeWidth: width }), { currentItemStrokeWidth: width }),
+    [applyProps]
+  );
+  const setFillStyle = useCallback(
+    (style: string) => applyProps(() => ({ fillStyle: style }), { currentItemFillStyle: style }),
+    [applyProps]
+  );
+  const setOpacity = useCallback(
+    (opacity: number) => applyProps(() => ({ opacity }), { currentItemOpacity: opacity }),
+    [applyProps]
+  );
+  const setFontSize = useCallback(
+    (size: number) =>
+      applyProps(
+        (el) => (el.type === 'text' ? { fontSize: size } : null),
+        { currentItemFontSize: size }
+      ),
+    [applyProps]
+  );
 
   const goToNextPage = useCallback(() => {
     if (currentPageIndex < pages.length - 1) {
@@ -232,6 +361,19 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
         </div>
       </div>
 
+      {/* Custom control rail — replaces Excalidraw's own panel/toolbar, which
+          overlap the page in Excalidraw's mobile layout (page < 730px wide). */}
+      <EditorControls
+        snapshot={snapshot}
+        onSetTool={setTool}
+        onSetStrokeColor={setStrokeColor}
+        onSetBackground={setBackground}
+        onSetStrokeWidth={setStrokeWidth}
+        onSetFillStyle={setFillStyle}
+        onSetOpacity={setOpacity}
+        onSetFontSize={setFontSize}
+      />
+
       {/* Main canvas with vertical navigation */}
       <div className="flex-1 flex">
         {/* A4 Canvas */}
@@ -254,7 +396,7 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
               <Download className="w-4 h-4" />
             </button>
           <div
-            className="w-[600px] h-[800px] bg-white shadow-lg"
+            className="notebook-canvas w-[600px] h-[800px] bg-white shadow-lg"
             onWheel={(e) => e.stopPropagation()}
             onWheelCapture={(e) => {
               e.stopPropagation();
