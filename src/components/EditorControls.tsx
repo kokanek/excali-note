@@ -27,6 +27,7 @@ export interface ControlsSnapshot {
   fillStyle: string;
   opacity: number;
   fontSize: number;
+  fontFamily: number;
 }
 
 interface EditorControlsProps {
@@ -39,6 +40,7 @@ interface EditorControlsProps {
   onSetFillStyle: (style: string) => void;
   onSetOpacity: (opacity: number) => void;
   onSetFontSize: (size: number) => void;
+  onSetFontFamily: (family: number) => void;
   onDownload: () => void;
 }
 
@@ -77,6 +79,12 @@ const FONT_SIZES = [
   { value: 20, label: 'M' },
   { value: 28, label: 'L' },
   { value: 36, label: 'XL' },
+];
+// Excalidraw FONT_FAMILY ids: Virgil=1 (hand-drawn), Helvetica=2, Cascadia=3.
+const FONT_FAMILIES = [
+  { value: 1, label: 'Hand-drawn' },
+  { value: 2, label: 'Normal' },
+  { value: 3, label: 'Code' },
 ];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -157,11 +165,14 @@ export function EditorControls({
   onSetFillStyle,
   onSetOpacity,
   onSetFontSize,
+  onSetFontFamily,
   onDownload,
 }: EditorControlsProps) {
+  // Text elements only carry color/opacity + font props — stroke width,
+  // stroke style, background and fill don't apply to them, so swap the whole
+  // property set based on context.
+  const isText = snapshot.hasText;
   const hasBackground = snapshot.backgroundColor !== 'transparent';
-  // Font size is only relevant for text elements / the text tool.
-  const showFont = snapshot.hasText;
 
   return (
     <div className="w-56 min-w-[14rem] flex flex-col bg-white border-r border-gray-200 overflow-y-auto">
@@ -198,50 +209,56 @@ export function EditorControls({
           </div>
         </Section>
 
-        <Section title="Background">
-          <div className="flex gap-1.5 flex-wrap">
-            {BACKGROUND_COLORS.map((c) => (
-              <Swatch
-                key={c}
-                color={c}
-                active={snapshot.backgroundColor?.toLowerCase() === c.toLowerCase()}
-                onClick={() => onSetBackground(c)}
-              />
-            ))}
-          </div>
-        </Section>
+        {!isText && (
+          <Section title="Background">
+            <div className="flex gap-1.5 flex-wrap">
+              {BACKGROUND_COLORS.map((c) => (
+                <Swatch
+                  key={c}
+                  color={c}
+                  active={snapshot.backgroundColor?.toLowerCase() === c.toLowerCase()}
+                  onClick={() => onSetBackground(c)}
+                />
+              ))}
+            </div>
+          </Section>
+        )}
 
-        <Section title="Stroke width">
-          <div className="flex gap-1.5">
-            {STROKE_WIDTHS.map(({ value, label }) => (
-              <PillButton
-                key={value}
-                active={snapshot.strokeWidth === value}
-                onClick={() => onSetStrokeWidth(value)}
-                title={label}
-              >
-                {label}
-              </PillButton>
-            ))}
-          </div>
-        </Section>
+        {!isText && (
+          <Section title="Stroke width">
+            <div className="flex gap-1.5">
+              {STROKE_WIDTHS.map(({ value, label }) => (
+                <PillButton
+                  key={value}
+                  active={snapshot.strokeWidth === value}
+                  onClick={() => onSetStrokeWidth(value)}
+                  title={label}
+                >
+                  {label}
+                </PillButton>
+              ))}
+            </div>
+          </Section>
+        )}
 
-        <Section title="Stroke style">
-          <div className="flex gap-1.5">
-            {STROKE_STYLES.map(({ value, label }) => (
-              <PillButton
-                key={value}
-                active={snapshot.strokeStyle === value}
-                onClick={() => onSetStrokeStyle(value)}
-                title={label}
-              >
-                {label}
-              </PillButton>
-            ))}
-          </div>
-        </Section>
+        {!isText && (
+          <Section title="Stroke style">
+            <div className="flex gap-1.5">
+              {STROKE_STYLES.map(({ value, label }) => (
+                <PillButton
+                  key={value}
+                  active={snapshot.strokeStyle === value}
+                  onClick={() => onSetStrokeStyle(value)}
+                  title={label}
+                >
+                  {label}
+                </PillButton>
+              ))}
+            </div>
+          </Section>
+        )}
 
-        {hasBackground && (
+        {!isText && hasBackground && (
           <Section title="Fill style">
             <div className="flex gap-1.5">
               {FILL_STYLES.map(({ value, label }) => (
@@ -250,6 +267,40 @@ export function EditorControls({
                   active={snapshot.fillStyle === value}
                   onClick={() => onSetFillStyle(value)}
                   title={label}
+                >
+                  {label}
+                </PillButton>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {isText && (
+          <Section title="Font family">
+            <div className="flex gap-1.5">
+              {FONT_FAMILIES.map(({ value, label }) => (
+                <PillButton
+                  key={value}
+                  active={snapshot.fontFamily === value}
+                  onClick={() => onSetFontFamily(value)}
+                  title={label}
+                >
+                  {label}
+                </PillButton>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {isText && (
+          <Section title="Font size">
+            <div className="flex gap-1.5">
+              {FONT_SIZES.map(({ value, label }) => (
+                <PillButton
+                  key={value}
+                  active={snapshot.fontSize === value}
+                  onClick={() => onSetFontSize(value)}
+                  title={`${value}px`}
                 >
                   {label}
                 </PillButton>
@@ -269,23 +320,6 @@ export function EditorControls({
             className="w-full accent-indigo-500"
           />
         </Section>
-
-        {showFont && (
-          <Section title="Font size">
-            <div className="flex gap-1.5">
-              {FONT_SIZES.map(({ value, label }) => (
-                <PillButton
-                  key={value}
-                  active={snapshot.fontSize === value}
-                  onClick={() => onSetFontSize(value)}
-                  title={`${value}px`}
-                >
-                  {label}
-                </PillButton>
-              ))}
-            </div>
-          </Section>
-        )}
 
         <div className="mt-2 pt-3 border-t border-gray-200">
           <button

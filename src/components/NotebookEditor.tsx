@@ -1,11 +1,18 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Excalidraw, exportToCanvas, getCommonBounds } from '@excalidraw/excalidraw';
-import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/types';
+import type { ExcalidrawImperativeAPI, NormalizedZoomValue } from '@excalidraw/excalidraw/types/types';
 import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
 import { PagePreview } from './PagePreview';
 import { EditorControls, type ControlsSnapshot } from './EditorControls';
+import { measureText, LINE_HEIGHTS } from '../lib/textMeasure';
 import type { Page } from '../types';
 import { cloneDeep, isEqual, debounce } from 'lodash';
+
+// The page is a fixed logical size; it's displayed scaled (via Excalidraw
+// zoom) to fill the available height while keeping this aspect ratio.
+const PAGE_WIDTH = 600;
+const PAGE_HEIGHT = 800;
+const PAGE_ASPECT = PAGE_WIDTH / PAGE_HEIGHT;
 
 // Loose element shape — Excalidraw elements carry many fields we don't model.
 type SceneElement = Record<string, unknown> & { id: string; type: string };
@@ -21,6 +28,7 @@ const DEFAULT_SNAPSHOT: ControlsSnapshot = {
   fillStyle: 'hachure',
   opacity: 100,
   fontSize: 20,
+  fontFamily: 1,
 };
 
 // New version metadata so updateScene actually re-renders the mutated element.
@@ -55,6 +63,8 @@ function computeSnapshot(
     opacity: pick<number>('opacity', 'currentItemOpacity') ?? 100,
     fontSize:
       (textEl?.fontSize as number) ?? (appState.currentItemFontSize as number) ?? 20,
+    fontFamily:
+      (textEl?.fontFamily as number) ?? (appState.currentItemFontFamily as number) ?? 1,
   };
 }
 
@@ -68,9 +78,56 @@ interface NotebookEditorProps {
 export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: NotebookEditorProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [snapshot, setSnapshot] = useState<ControlsSnapshot>(DEFAULT_SNAPSHOT);
+  const [pageHeight, setPageHeight] = useState(PAGE_HEIGHT);
   const excalidrawAPIRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  const canvasAreaRef = useRef<HTMLDivElement>(null);
 
   const currentPage = useMemo(() => pages[currentPageIndex], [pages, currentPageIndex]);
+
+  // Option A responsive page: fixed logical 600x800 sheet, displayed scaled to
+  // fill the available height (width follows the aspect ratio) via Excalidraw
+  // zoom. Keeps a page identical across screen sizes; downloads/previews stay
+  // at the canonical resolution.
+  const pageDisplayWidth = Math.round(pageHeight * PAGE_ASPECT);
+  const zoomValue = pageHeight / PAGE_HEIGHT;
+
+  // Track the available height of the canvas area and recompute the page size.
+  useEffect(() => {
+    const el = canvasAreaRef.current;
+    if (!el) return;
+    const compute = () => {
+      const styles = getComputedStyle(el);
+      const padY = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
+      const available = el.clientHeight - padY;
+      if (available > 0) setPageHeight(Math.max(320, Math.floor(available)));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Lock Excalidraw's zoom to the page scale. Excalidraw resets zoom to 1
+  // during its post-mount init and can re-assert it on resize, so we apply it
+  // here (immediately + a couple of frames later) and also re-assert from
+  // onChange below, which catches any reset Excalidraw performs on its own.
+  const applyZoom = useCallback(() => {
+    const api = excalidrawAPIRef.current;
+    if (!api) return;
+    api.updateScene({
+      appState: { zoom: { value: zoomValue as NormalizedZoomValue }, scrollX: 0, scrollY: 0 },
+    });
+  }, [zoomValue]);
+
+  useEffect(() => {
+    applyZoom();
+    const r = requestAnimationFrame(applyZoom);
+    const t = setTimeout(applyZoom, 150);
+    return () => {
+      cancelAnimationFrame(r);
+      clearTimeout(t);
+    };
+  }, [applyZoom, currentPageIndex]);
 
   // Debounced persistence of element changes to the notebook store.
   const persistChange = useMemo(
@@ -98,15 +155,22 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
   // (immediately) and persist element changes (debounced).
   const handleChange = useCallback(
     (elements: readonly unknown[], appState: unknown, files: Record<string, unknown>) => {
-      setSnapshot(
-        computeSnapshot(
-          elements as readonly SceneElement[],
-          appState as Record<string, unknown>
-        )
-      );
+      const state = appState as Record<string, unknown>;
+      setSnapshot(computeSnapshot(elements as readonly SceneElement[], state));
+
+      // Re-assert the locked zoom if Excalidraw drifted from it (it resets to 1
+      // on init). Guard on a tolerance so this doesn't loop.
+      const api = excalidrawAPIRef.current;
+      const currentZoom = (state.zoom as { value?: number } | undefined)?.value ?? 1;
+      if (api && Math.abs(currentZoom - zoomValue) > 1e-3) {
+        api.updateScene({
+          appState: { zoom: { value: zoomValue as NormalizedZoomValue }, scrollX: 0, scrollY: 0 },
+        });
+      }
+
       persistChange(elements as unknown[], files);
     },
-    [persistChange]
+    [persistChange, zoomValue]
   );
 
   // Cleanup the debounced function when the component unmounts
@@ -179,10 +243,28 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
   );
   const setFontSize = useCallback(
     (size: number) =>
-      applyProps(
-        (el) => (el.type === 'text' ? { fontSize: size } : null),
-        { currentItemFontSize: size }
-      ),
+      applyProps((el) => {
+        if (el.type !== 'text') return null;
+        // Re-flow the bounding box so glyphs don't spill out of it. Skip
+        // container-bound text, whose sizing follows its container.
+        if (el.containerId) return { fontSize: size };
+        const fontFamily = (el.fontFamily as number) ?? 1;
+        const lineHeight = (el.lineHeight as number) ?? LINE_HEIGHTS[fontFamily] ?? 1.25;
+        const metrics = measureText(String(el.text ?? ''), size, fontFamily, lineHeight);
+        return { fontSize: size, ...metrics };
+      }, { currentItemFontSize: size }),
+    [applyProps]
+  );
+  const setFontFamily = useCallback(
+    (family: number) =>
+      applyProps((el) => {
+        if (el.type !== 'text') return null;
+        const lineHeight = LINE_HEIGHTS[family] ?? 1.25;
+        if (el.containerId) return { fontFamily: family, lineHeight };
+        const fontSize = (el.fontSize as number) ?? 20;
+        const metrics = measureText(String(el.text ?? ''), fontSize, family, lineHeight);
+        return { fontFamily: family, lineHeight, ...metrics };
+      }, { currentItemFontFamily: family }),
     [applyProps]
   );
 
@@ -250,8 +332,6 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
   }, []);
 
   async function handleDownload(): Promise<void> {
-    const PAGE_WIDTH = 600;
-    const PAGE_HEIGHT = 800;
     try {
       const pageCanvas = document.createElement('canvas');
       pageCanvas.width = PAGE_WIDTH;
@@ -379,13 +459,17 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
         onSetFillStyle={setFillStyle}
         onSetOpacity={setOpacity}
         onSetFontSize={setFontSize}
+        onSetFontFamily={setFontFamily}
         onDownload={handleDownload}
       />
 
       {/* Main canvas with vertical navigation */}
       <div className="flex-1 flex">
         {/* A4 Canvas */}
-        <div className="flex-1 flex items-center justify-center p-8 bg-gray-100">
+        <div
+          ref={canvasAreaRef}
+          className="flex-1 flex items-center justify-center p-8 bg-gray-100"
+        >
           <div className="flex flex-col mr-1 justify-center p-4 bg-white border-r border-gray-200">
             <button
               onClick={goToPreviousPage}
@@ -396,18 +480,23 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
             </button>
           </div>
           <div
-            className="notebook-canvas w-[600px] h-[800px] bg-white shadow-lg"
+            className="notebook-canvas bg-white shadow-lg"
             onWheel={(e) => e.stopPropagation()}
             onWheelCapture={(e) => {
               e.stopPropagation();
             }}
-            style={{ touchAction: 'none' }}
+            style={{ touchAction: 'none', width: pageDisplayWidth, height: pageHeight }}
           >
             <Excalidraw
               key={excalidrawKey}
               excalidrawAPI={setExcalidrawAPI}
               initialData={{
                 elements: currentPage.elements,
+                appState: {
+                  zoom: { value: zoomValue as NormalizedZoomValue },
+                  scrollX: 0,
+                  scrollY: 0,
+                },
               }}
               onChange={handleChange}
               gridModeEnabled={false}
