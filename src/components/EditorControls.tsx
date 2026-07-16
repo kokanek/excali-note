@@ -8,6 +8,7 @@ import {
   Minus,
   Type,
   Eraser,
+  Download,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -22,6 +23,7 @@ export interface ControlsSnapshot {
   strokeColor: string;
   backgroundColor: string;
   strokeWidth: number;
+  strokeStyle: string;
   fillStyle: string;
   opacity: number;
   fontSize: number;
@@ -33,9 +35,11 @@ interface EditorControlsProps {
   onSetStrokeColor: (color: string) => void;
   onSetBackground: (color: string) => void;
   onSetStrokeWidth: (width: number) => void;
+  onSetStrokeStyle: (style: string) => void;
   onSetFillStyle: (style: string) => void;
   onSetOpacity: (opacity: number) => void;
   onSetFontSize: (size: number) => void;
+  onDownload: () => void;
 }
 
 const TOOLS: { type: string; label: string; Icon: ComponentType<{ className?: string }> }[] = [
@@ -57,6 +61,11 @@ const STROKE_WIDTHS = [
   { value: 1, label: 'Thin' },
   { value: 2, label: 'Bold' },
   { value: 4, label: 'Extra bold' },
+];
+const STROKE_STYLES = [
+  { value: 'solid', label: 'Solid' },
+  { value: 'dashed', label: 'Dashed' },
+  { value: 'dotted', label: 'Dotted' },
 ];
 const FILL_STYLES = [
   { value: 'hachure', label: 'Hachure' },
@@ -144,9 +153,11 @@ export function EditorControls({
   onSetStrokeColor,
   onSetBackground,
   onSetStrokeWidth,
+  onSetStrokeStyle,
   onSetFillStyle,
   onSetOpacity,
   onSetFontSize,
+  onDownload,
 }: EditorControlsProps) {
   const hasBackground = snapshot.backgroundColor !== 'transparent';
   // Font size is only relevant for text elements / the text tool.
@@ -215,6 +226,21 @@ export function EditorControls({
           </div>
         </Section>
 
+        <Section title="Stroke style">
+          <div className="flex gap-1.5">
+            {STROKE_STYLES.map(({ value, label }) => (
+              <PillButton
+                key={value}
+                active={snapshot.strokeStyle === value}
+                onClick={() => onSetStrokeStyle(value)}
+                title={label}
+              >
+                {label}
+              </PillButton>
+            ))}
+          </div>
+        </Section>
+
         {hasBackground && (
           <Section title="Fill style">
             <div className="flex gap-1.5">
@@ -260,6 +286,17 @@ export function EditorControls({
             </div>
           </Section>
         )}
+
+        <div className="mt-2 pt-3 border-t border-gray-200">
+          <button
+            onClick={onDownload}
+            title="Download this page as PNG"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-md border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 transition"
+          >
+            <Download className="w-4 h-4" />
+            Download page
+          </button>
+        </div>
       </div>
     </div>
   );

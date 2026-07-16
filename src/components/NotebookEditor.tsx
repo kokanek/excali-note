@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Excalidraw, exportToCanvas, getCommonBounds } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/types';
-import { ChevronLeft, ChevronRight, Home, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
 import { PagePreview } from './PagePreview';
 import { EditorControls, type ControlsSnapshot } from './EditorControls';
 import type { Page } from '../types';
@@ -17,6 +17,7 @@ const DEFAULT_SNAPSHOT: ControlsSnapshot = {
   strokeColor: '#1e1e1e',
   backgroundColor: 'transparent',
   strokeWidth: 1,
+  strokeStyle: 'solid',
   fillStyle: 'hachure',
   opacity: 100,
   fontSize: 20,
@@ -49,6 +50,7 @@ function computeSnapshot(
     strokeColor: pick<string>('strokeColor', 'currentItemStrokeColor') ?? '#1e1e1e',
     backgroundColor: pick<string>('backgroundColor', 'currentItemBackgroundColor') ?? 'transparent',
     strokeWidth: pick<number>('strokeWidth', 'currentItemStrokeWidth') ?? 1,
+    strokeStyle: pick<string>('strokeStyle', 'currentItemStrokeStyle') ?? 'solid',
     fillStyle: pick<string>('fillStyle', 'currentItemFillStyle') ?? 'hachure',
     opacity: pick<number>('opacity', 'currentItemOpacity') ?? 100,
     fontSize:
@@ -161,6 +163,10 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
   );
   const setStrokeWidth = useCallback(
     (width: number) => applyProps(() => ({ strokeWidth: width }), { currentItemStrokeWidth: width }),
+    [applyProps]
+  );
+  const setStrokeStyle = useCallback(
+    (style: string) => applyProps(() => ({ strokeStyle: style }), { currentItemStrokeStyle: style }),
     [applyProps]
   );
   const setFillStyle = useCallback(
@@ -369,9 +375,11 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
         onSetStrokeColor={setStrokeColor}
         onSetBackground={setBackground}
         onSetStrokeWidth={setStrokeWidth}
+        onSetStrokeStyle={setStrokeStyle}
         onSetFillStyle={setFillStyle}
         onSetOpacity={setOpacity}
         onSetFontSize={setFontSize}
+        onDownload={handleDownload}
       />
 
       {/* Main canvas with vertical navigation */}
@@ -387,14 +395,6 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
               <ChevronLeft className="w-6 h-6" />
             </button>
           </div>
-          <div className="relative">
-            <button
-              onClick={handleDownload}
-              className="absolute top-2 left-2 z-10 p-1.5 rounded bg-white shadow hover:bg-gray-100 border border-gray-200"
-              title="Download page as PNG"
-            >
-              <Download className="w-4 h-4" />
-            </button>
           <div
             className="notebook-canvas w-[600px] h-[800px] bg-white shadow-lg"
             onWheel={(e) => e.stopPropagation()}
@@ -420,7 +420,6 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
                 },
               }}
             />
-          </div>
           </div>
           <div className="flex flex-col ml-1 justify-center p-4 bg-white border-r border-gray-200">
             <button
