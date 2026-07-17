@@ -2,7 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-.excalidraw .App-menu_top {
+/*
+ * At 600px wide our page is below Excalidraw's 730px mobile breakpoint, so it
+ * renders the mobile layout: a top toolbar, a bottom bar whose palette button
+ * opens a full-height property panel, and a right-side misc-tools column — all
+ * of which overlap the page. We drive the editor from our own control rail
+ * (EditorControls), so hide Excalidraw's native chrome. The canvas itself is a
+ * separate sibling node and stays fully interactive.
+ */
+.notebook-canvas .excalidraw .App-top-bar,
+.notebook-canvas .excalidraw .App-bottom-bar,
+.notebook-canvas .excalidraw .mobile-misc-tools-container,
+.notebook-canvas .excalidraw .App-menu_top,
+.notebook-canvas .excalidraw .layer-ui__wrapper__footer,
+.notebook-canvas .excalidraw .scroll-back-to-content {
   display: none !important;
 }
 
