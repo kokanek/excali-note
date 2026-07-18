@@ -1,5 +1,3 @@
-import React, { useEffect, useRef } from 'react';
-import rough from 'roughjs';
 import type { Page } from '../types';
 
 interface PagePreviewProps {
@@ -14,225 +12,44 @@ interface PagePreviewProps {
   isLast: boolean;
 }
 
-// Scale factor for preview (A4 dimensions: 595x842)
-const PREVIEW_WIDTH = 200;
-const SCALE_FACTOR = PREVIEW_WIDTH / 595;
-
-export function PagePreview({ 
-  page, 
-  isActive, 
-  onClick, 
-  onPageDelete, 
+export function PagePreview({
+  page,
+  isActive,
+  onClick,
+  onPageDelete,
   onPageMove,
-  pageId, 
+  pageId,
   pageNumber,
   isFirst,
-  isLast 
+  isLast
 }: PagePreviewProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
   const handleDelete = (pageId: string) => {
     if (window.confirm("Are you sure you want to delete this page?")) {
       onPageDelete(pageId);
     }
   };
 
-  useEffect(() => {
-    if (!canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle =  '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const rc = rough.canvas(canvas);
-    const { files } = page;
-
-    // Render each element
-    page.elements.filter((element) => !element.isDeleted).forEach(element => {
-      const scaledElement = scaleElement(element);
-      const options = {
-        stroke: element.strokeColor || '#000000',
-        strokeWidth: (element.strokeWidth || 1) * SCALE_FACTOR,
-        fill: element.backgroundColor,
-        fillStyle: element.fillStyle
-      };
-      
-      switch (element.type) {
-        case 'rectangle':
-          rc.rectangle(
-            scaledElement.x,
-            scaledElement.y,
-            scaledElement.width,
-            scaledElement.height,
-            options
-          );
-          break;
-        case 'text': {
-          if (!ctx) return;
-          
-          // Scale the font size
-          const scaledFontSize = (element.fontSize || 20) * SCALE_FACTOR;
-          ctx.font = `${scaledFontSize}px ${element.fontFamily === 1 ? 'sans-serif' : 'serif'}`;
-          ctx.fillStyle = element.strokeColor || '#000000';
-          ctx.textAlign =  'left';
-          
-          // Text wrapping function
-          const words = element.text.split(' ');
-          let line = '';
-          let y = scaledElement.y + scaledFontSize;
-          
-          for (const word of words) {
-            const testLine = line + (line ? ' ' : '') + word;
-            const metrics = ctx.measureText(testLine);
-            
-            if (metrics.width > scaledElement.width && line) {
-              ctx.fillText(line, scaledElement.x, y);
-              line = word;
-              y += scaledFontSize * 1.2; // Add line spacing
-            } else {
-              line = testLine;
-            }
-          }
-          // Draw the last line
-          if (line) {
-            ctx.fillText(line, scaledElement.x, y);
-          }
-          break;
-        }
-        case 'diamond': {
-          // For a diamond, we need to create a path from the midpoints of each side
-          const midX = scaledElement.x + scaledElement.width / 2;
-          const midY = scaledElement.y + scaledElement.height / 2;
-          const points: [number, number][] = [
-            [midX, scaledElement.y], // top
-            [scaledElement.x + scaledElement.width, midY], // right
-            [midX, scaledElement.y + scaledElement.height], // bottom
-            [scaledElement.x, midY], // left
-          ];
-          rc.polygon(points, options);
-          break;
-        }
-        case 'ellipse':
-          rc.ellipse(
-            scaledElement.x + scaledElement.width / 2,
-            scaledElement.y + scaledElement.height / 2,
-            scaledElement.width,
-            scaledElement.height,
-            options
-          );
-          break;
-        case 'line':
-        case 'arrow': {
-          // Get start and end points from the element and add the element's x,y offset
-          const [relX1, relY1] = element.points[0];
-          const [relX2, relY2] = element.points[element.points.length - 1];
-          
-          // Add the element's x,y offset to get absolute coordinates
-          const x1 = (element.x + relX1) * SCALE_FACTOR;
-          const y1 = (element.y + relY1) * SCALE_FACTOR;
-          const x2 = (element.x + relX2) * SCALE_FACTOR;
-          const y2 = (element.y + relY2) * SCALE_FACTOR;
-          
-          // Draw the main line
-          rc.line(
-            x1,
-            y1,
-            x2,
-            y2,
-            options
-          );
-          
-          if (element.type === 'arrow' && element.endArrowhead === 'arrow') {
-            // Calculate arrow angle
-            const angle = Math.atan2(y2 - y1, x2 - x1);
-            const arrowLength = 10 * SCALE_FACTOR;
-            const arrowAngle = Math.PI / 6;
-            
-            // Draw arrowhead
-            rc.line(
-              x2,
-              y2,
-              x2 - arrowLength * Math.cos(angle - arrowAngle),
-              y2 - arrowLength * Math.sin(angle - arrowAngle),
-              options
-            );
-            rc.line(
-              x2,
-              y2,
-              x2 - arrowLength * Math.cos(angle + arrowAngle),
-              y2 - arrowLength * Math.sin(angle + arrowAngle),
-              options
-            );
-          }
-          break;
-        }
-        case 'freedraw':
-          if (element.points && element.points.length > 1) {
-            const scaledPoints = element.points.map(([x, y]: [number, number]) => [
-              (element.x + x) * SCALE_FACTOR,
-              (element.y + y) * SCALE_FACTOR
-            ]);
-            
-            rc.curve(scaledPoints, options);
-          }
-          break;
-        case 'image': {
-            const fileData = files[element.fileId];
-            if (fileData?.dataURL) {
-              // Create a new image element
-              const img = new Image();
-              img.src = fileData.dataURL;
-              
-              // Draw the image once it's loaded
-              img.onload = () => {
-                if (!ctx) return;
-                ctx.drawImage(
-                  img,
-                  scaledElement.x,
-                  scaledElement.y,
-                  scaledElement.width,
-                  scaledElement.height
-                );
-              };
-            }
-            break;
-          }
-      }
-    });
-  });
-
-  function scaleElement(element: Record<string, unknown>) {
-    const scaled = { ...element };
-    
-    // Scale position and dimensions
-    if (typeof element.x === 'number') scaled.x = element.x * SCALE_FACTOR;
-    if (typeof element.y === 'number') scaled.y = element.y * SCALE_FACTOR;
-    if (typeof element.width === 'number') scaled.width = element.width * SCALE_FACTOR;
-    if (typeof element.height === 'number') scaled.height = element.height * SCALE_FACTOR;
-    
-    return scaled;
-  }
-
   return (
     <div className="flex flex-col items-center">
       <div className="flex flex-col items-center mb-2 w-full">
-        <div 
+        <div
           onClick={onClick}
           className={`relative w-full aspect-[1/1.414] cursor-pointer transition-all ${
             isActive ? 'ring-2 ring-blue-500' : 'hover:ring-2 hover:ring-blue-300 border-2 border-gray-200'
           }`}
         >
-          <canvas
-            ref={canvasRef}
-            width={PREVIEW_WIDTH}
-            height={PREVIEW_WIDTH * 1.414}
-            className="w-full h-full"
-          />
+          {/* Thumbnail rendered with Excalidraw's real engine (see
+              NotebookEditor.renderPageThumbnail). Blank white until the page is
+              first committed / activated. */}
+          {page.thumbnail ? (
+            <img
+              src={page.thumbnail}
+              alt={`Page ${pageNumber} preview`}
+              className="w-full h-full object-contain bg-white"
+            />
+          ) : (
+            <div className="w-full h-full bg-white" />
+          )}
         </div>
         <div className={`w-full flex justify-between items-center px-1 py-1 bg-gray-100 rounded-b-lg ${
           isActive ? 'ring-2 ring-blue-500' : 'border-x-2 border-b-2 border-gray-200'

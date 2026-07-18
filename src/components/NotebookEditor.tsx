@@ -31,6 +31,54 @@ const DEFAULT_SNAPSHOT: ControlsSnapshot = {
   fontFamily: 1,
 };
 
+// Sidebar thumbnail width in px; height follows the page aspect ratio.
+const THUMB_WIDTH = 300;
+
+// Render a page-shaped thumbnail using Excalidraw's real rendering engine
+// (same compositing approach as handleDownload, scaled down). Returns a PNG
+// data URL. Produces a blank white sheet when the page has no drawable content.
+async function renderPageThumbnail(
+  elements: unknown[],
+  appState: unknown,
+  files: Record<string, unknown> | undefined
+): Promise<string> {
+  const scale = THUMB_WIDTH / PAGE_WIDTH;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(PAGE_WIDTH * scale);
+  canvas.height = Math.round(PAGE_HEIGHT * scale);
+  const ctx = canvas.getContext('2d')!;
+
+  // White page background.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const typedElements = elements as Parameters<typeof exportToCanvas>[0]['elements'];
+  const drawable = (elements as Array<{ isDeleted?: boolean }>).filter((el) => !el.isDeleted);
+
+  if (drawable.length > 0) {
+    const elemCanvas = await exportToCanvas({
+      elements: typedElements,
+      appState: appState as Parameters<typeof exportToCanvas>[0]['appState'],
+      files: (files ?? null) as Parameters<typeof exportToCanvas>[0]['files'],
+      exportPadding: 0,
+    });
+
+    // Elements live in scene coordinates on the fixed 600x800 page (scroll is
+    // locked to 0), so their bounds map directly onto the page. Place the
+    // rendered element canvas at its bounds, scaled to the thumbnail.
+    const [minX, minY] = getCommonBounds(typedElements);
+    ctx.drawImage(
+      elemCanvas,
+      Math.round(minX * scale),
+      Math.round(minY * scale),
+      Math.round(elemCanvas.width * scale),
+      Math.round(elemCanvas.height * scale)
+    );
+  }
+
+  return canvas.toDataURL('image/png');
+}
+
 // New version metadata so updateScene actually re-renders the mutated element.
 const bumpVersion = (el: SceneElement) => ({
   version: ((el.version as number) ?? 1) + 1,
@@ -160,11 +208,20 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
   // Debounced persistence of element changes to the notebook store.
   const persistChange = useMemo(
     () =>
-      debounce((elements: unknown[], files: Record<string, unknown>) => {
+      debounce(async (elements: unknown[], files: Record<string, unknown>) => {
         const areElementsEqual = isEqual(pages[currentPageIndex].elements, elements);
         if (areElementsEqual) {
           return;
         }
+
+        // Regenerate the thumbnail only here — i.e. after the user pauses on a
+        // real commit (letter typed, shape added/moved), and only for the page
+        // being edited. This is what stops the high-frequency preview redraws.
+        const thumbnail = await renderPageThumbnail(
+          elements,
+          pages[currentPageIndex].appState,
+          files
+        );
 
         const newPages = cloneDeep(pages);
         newPages[currentPageIndex] = {
@@ -172,6 +229,7 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
           id: pages[currentPageIndex].id,
           appState: pages[currentPageIndex].appState,
           files: cloneDeep(files),
+          thumbnail,
         };
 
         onPagesChange(newPages);
@@ -215,6 +273,31 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
       persistChange.cancel();
     };
   }, [persistChange]);
+
+  // Lazily backfill a thumbnail for the active page if it doesn't have one yet
+  // (e.g. notebooks created before thumbnails were persisted). Runs once per
+  // page: generating a thumbnail sets `thumbnail`, so this won't re-fire.
+  useEffect(() => {
+    const page = pages[currentPageIndex];
+    if (!page || page.thumbnail) return;
+    const drawable = (page.elements as Array<{ isDeleted?: boolean }>).filter(
+      (el) => !el.isDeleted
+    );
+    if (drawable.length === 0) return; // empty page: blank preview, nothing to render
+
+    let cancelled = false;
+    (async () => {
+      const thumbnail = await renderPageThumbnail(page.elements, page.appState, page.files);
+      if (cancelled) return;
+      const newPages = cloneDeep(pages);
+      newPages[currentPageIndex] = { ...newPages[currentPageIndex], thumbnail };
+      onPagesChange(newPages);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPageIndex, pages[currentPageIndex]?.id, pages[currentPageIndex]?.thumbnail]);
 
   // ---- Control rail bridge: drive Excalidraw through its public API ----
 
