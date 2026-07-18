@@ -31,6 +31,75 @@ const DEFAULT_SNAPSHOT: ControlsSnapshot = {
   fontFamily: 1,
 };
 
+// Sidebar thumbnail width in px; height follows the page aspect ratio.
+const THUMB_WIDTH = 300;
+
+// Composite a page onto a full-resolution PAGE_WIDTH x PAGE_HEIGHT canvas: a
+// white sheet with the elements rendered by Excalidraw's real engine and placed
+// at their scene coordinates. This is the single source of truth for both the
+// download and the sidebar thumbnail, so the two can never drift apart.
+//
+// Elements live in scene coordinates; on the page the view is locked to scroll
+// 0, so scene coords map directly onto the sheet. scrollX/scrollY are passed
+// through only to correct for any residual live-canvas scroll on download.
+async function compositePageCanvas(
+  elements: unknown[],
+  appState: unknown,
+  files: Record<string, unknown> | undefined,
+  scrollX = 0,
+  scrollY = 0
+): Promise<HTMLCanvasElement> {
+  const canvas = document.createElement('canvas');
+  canvas.width = PAGE_WIDTH;
+  canvas.height = PAGE_HEIGHT;
+  const ctx = canvas.getContext('2d')!;
+
+  // White page background.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+
+  const typedElements = elements as Parameters<typeof exportToCanvas>[0]['elements'];
+  const drawable = (elements as Array<{ isDeleted?: boolean }>).filter((el) => !el.isDeleted);
+
+  if (drawable.length > 0) {
+    const elemCanvas = await exportToCanvas({
+      elements: typedElements,
+      appState: appState as Parameters<typeof exportToCanvas>[0]['appState'],
+      files: (files ?? null) as Parameters<typeof exportToCanvas>[0]['files'],
+      exportPadding: 0,
+    });
+
+    // getCommonBounds returns [minX, minY, ...] in scene coordinates.
+    const [minX, minY] = getCommonBounds(typedElements);
+    ctx.drawImage(elemCanvas, Math.round(minX + scrollX), Math.round(minY + scrollY));
+  }
+
+  return canvas;
+}
+
+// Render a page-shaped thumbnail. Built by downscaling the full-resolution page
+// composite in one step, so the thumbnail is a pixel-exact miniature of the
+// download (and therefore of the live canvas) rather than an independently
+// positioned re-render that can drift. Returns a PNG data URL.
+async function renderPageThumbnail(
+  elements: unknown[],
+  appState: unknown,
+  files: Record<string, unknown> | undefined
+): Promise<string> {
+  const pageCanvas = await compositePageCanvas(elements, appState, files);
+
+  const scale = THUMB_WIDTH / PAGE_WIDTH;
+  const thumb = document.createElement('canvas');
+  thumb.width = Math.round(PAGE_WIDTH * scale);
+  thumb.height = Math.round(PAGE_HEIGHT * scale);
+  const ctx = thumb.getContext('2d')!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(pageCanvas, 0, 0, thumb.width, thumb.height);
+
+  return thumb.toDataURL('image/png');
+}
+
 // New version metadata so updateScene actually re-renders the mutated element.
 const bumpVersion = (el: SceneElement) => ({
   version: ((el.version as number) ?? 1) + 1,
@@ -160,11 +229,20 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
   // Debounced persistence of element changes to the notebook store.
   const persistChange = useMemo(
     () =>
-      debounce((elements: unknown[], files: Record<string, unknown>) => {
+      debounce(async (elements: unknown[], files: Record<string, unknown>) => {
         const areElementsEqual = isEqual(pages[currentPageIndex].elements, elements);
         if (areElementsEqual) {
           return;
         }
+
+        // Regenerate the thumbnail only here — i.e. after the user pauses on a
+        // real commit (letter typed, shape added/moved), and only for the page
+        // being edited. This is what stops the high-frequency preview redraws.
+        const thumbnail = await renderPageThumbnail(
+          elements,
+          pages[currentPageIndex].appState,
+          files
+        );
 
         const newPages = cloneDeep(pages);
         newPages[currentPageIndex] = {
@@ -172,6 +250,7 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
           id: pages[currentPageIndex].id,
           appState: pages[currentPageIndex].appState,
           files: cloneDeep(files),
+          thumbnail,
         };
 
         onPagesChange(newPages);
@@ -215,6 +294,31 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
       persistChange.cancel();
     };
   }, [persistChange]);
+
+  // Lazily backfill a thumbnail for the active page if it doesn't have one yet
+  // (e.g. notebooks created before thumbnails were persisted). Runs once per
+  // page: generating a thumbnail sets `thumbnail`, so this won't re-fire.
+  useEffect(() => {
+    const page = pages[currentPageIndex];
+    if (!page || page.thumbnail) return;
+    const drawable = (page.elements as Array<{ isDeleted?: boolean }>).filter(
+      (el) => !el.isDeleted
+    );
+    if (drawable.length === 0) return; // empty page: blank preview, nothing to render
+
+    let cancelled = false;
+    (async () => {
+      const thumbnail = await renderPageThumbnail(page.elements, page.appState, page.files);
+      if (cancelled) return;
+      const newPages = cloneDeep(pages);
+      newPages[currentPageIndex] = { ...newPages[currentPageIndex], thumbnail };
+      onPagesChange(newPages);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPageIndex, pages[currentPageIndex]?.id, pages[currentPageIndex]?.thumbnail]);
 
   // ---- Control rail bridge: drive Excalidraw through its public API ----
 
@@ -369,35 +473,20 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
 
   async function handleDownload(): Promise<void> {
     try {
-      const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = PAGE_WIDTH;
-      pageCanvas.height = PAGE_HEIGHT;
-      const ctx = pageCanvas.getContext('2d')!;
+      // Correct for any residual live-canvas scroll (the view is locked to 0).
+      const appState = excalidrawAPIRef.current?.getAppState();
+      const scrollX = appState?.scrollX ?? 0;
+      const scrollY = appState?.scrollY ?? 0;
 
-      // Fill white background matching the page
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
-
-      const elements = currentPage.elements as Parameters<typeof exportToCanvas>[0]['elements'];
-      if (elements.length > 0) {
-        const elemCanvas = await exportToCanvas({
-          elements,
-          appState: currentPage.appState as Parameters<typeof exportToCanvas>[0]['appState'],
-          files: (currentPage.files ?? null) as Parameters<typeof exportToCanvas>[0]['files'],
-          exportPadding: 0,
-        });
-
-        // Get Excalidraw scroll offsets so elements land at their correct position on the page
-        const appState = excalidrawAPIRef.current?.getAppState();
-        const scrollX = appState?.scrollX ?? 0;
-        const scrollY = appState?.scrollY ?? 0;
-
-        // getCommonBounds returns [minX, minY, maxX, maxY] in scene coordinates
-        const [minX, minY] = getCommonBounds(elements);
-
-        // scene → screen: screenX = sceneX + scrollX
-        ctx.drawImage(elemCanvas, Math.round(minX + scrollX), Math.round(minY + scrollY));
-      }
+      // Same composite the sidebar thumbnail downscales, so download and preview
+      // always agree with each other and with the live canvas.
+      const pageCanvas = await compositePageCanvas(
+        currentPage.elements,
+        currentPage.appState,
+        currentPage.files,
+        scrollX,
+        scrollY
+      );
 
       pageCanvas.toBlob((blob) => {
         if (!blob) return;
