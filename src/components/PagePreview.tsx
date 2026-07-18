@@ -34,7 +34,10 @@ export function PagePreview({
       <div className="flex flex-col items-center mb-2 w-full">
         <div
           onClick={onClick}
-          className={`relative w-full aspect-[1/1.414] cursor-pointer transition-all ${
+          // aspect-[3/4] matches the real page (600x800), so the thumbnail fills
+          // the box edge-to-edge with no letterboxing and lines up exactly with
+          // the main canvas.
+          className={`relative w-full aspect-[3/4] cursor-pointer transition-all ${
             isActive ? 'ring-2 ring-blue-500' : 'hover:ring-2 hover:ring-blue-300 border-2 border-gray-200'
           }`}
         >
@@ -45,7 +48,7 @@ export function PagePreview({
             <img
               src={page.thumbnail}
               alt={`Page ${pageNumber} preview`}
-              className="w-full h-full object-contain bg-white"
+              className="w-full h-full object-fill bg-white"
             />
           ) : (
             <div className="w-full h-full bg-white" />

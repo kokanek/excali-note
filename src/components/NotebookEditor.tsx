@@ -34,23 +34,29 @@ const DEFAULT_SNAPSHOT: ControlsSnapshot = {
 // Sidebar thumbnail width in px; height follows the page aspect ratio.
 const THUMB_WIDTH = 300;
 
-// Render a page-shaped thumbnail using Excalidraw's real rendering engine
-// (same compositing approach as handleDownload, scaled down). Returns a PNG
-// data URL. Produces a blank white sheet when the page has no drawable content.
-async function renderPageThumbnail(
+// Composite a page onto a full-resolution PAGE_WIDTH x PAGE_HEIGHT canvas: a
+// white sheet with the elements rendered by Excalidraw's real engine and placed
+// at their scene coordinates. This is the single source of truth for both the
+// download and the sidebar thumbnail, so the two can never drift apart.
+//
+// Elements live in scene coordinates; on the page the view is locked to scroll
+// 0, so scene coords map directly onto the sheet. scrollX/scrollY are passed
+// through only to correct for any residual live-canvas scroll on download.
+async function compositePageCanvas(
   elements: unknown[],
   appState: unknown,
-  files: Record<string, unknown> | undefined
-): Promise<string> {
-  const scale = THUMB_WIDTH / PAGE_WIDTH;
+  files: Record<string, unknown> | undefined,
+  scrollX = 0,
+  scrollY = 0
+): Promise<HTMLCanvasElement> {
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(PAGE_WIDTH * scale);
-  canvas.height = Math.round(PAGE_HEIGHT * scale);
+  canvas.width = PAGE_WIDTH;
+  canvas.height = PAGE_HEIGHT;
   const ctx = canvas.getContext('2d')!;
 
   // White page background.
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
 
   const typedElements = elements as Parameters<typeof exportToCanvas>[0]['elements'];
   const drawable = (elements as Array<{ isDeleted?: boolean }>).filter((el) => !el.isDeleted);
@@ -63,20 +69,35 @@ async function renderPageThumbnail(
       exportPadding: 0,
     });
 
-    // Elements live in scene coordinates on the fixed 600x800 page (scroll is
-    // locked to 0), so their bounds map directly onto the page. Place the
-    // rendered element canvas at its bounds, scaled to the thumbnail.
+    // getCommonBounds returns [minX, minY, ...] in scene coordinates.
     const [minX, minY] = getCommonBounds(typedElements);
-    ctx.drawImage(
-      elemCanvas,
-      Math.round(minX * scale),
-      Math.round(minY * scale),
-      Math.round(elemCanvas.width * scale),
-      Math.round(elemCanvas.height * scale)
-    );
+    ctx.drawImage(elemCanvas, Math.round(minX + scrollX), Math.round(minY + scrollY));
   }
 
-  return canvas.toDataURL('image/png');
+  return canvas;
+}
+
+// Render a page-shaped thumbnail. Built by downscaling the full-resolution page
+// composite in one step, so the thumbnail is a pixel-exact miniature of the
+// download (and therefore of the live canvas) rather than an independently
+// positioned re-render that can drift. Returns a PNG data URL.
+async function renderPageThumbnail(
+  elements: unknown[],
+  appState: unknown,
+  files: Record<string, unknown> | undefined
+): Promise<string> {
+  const pageCanvas = await compositePageCanvas(elements, appState, files);
+
+  const scale = THUMB_WIDTH / PAGE_WIDTH;
+  const thumb = document.createElement('canvas');
+  thumb.width = Math.round(PAGE_WIDTH * scale);
+  thumb.height = Math.round(PAGE_HEIGHT * scale);
+  const ctx = thumb.getContext('2d')!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(pageCanvas, 0, 0, thumb.width, thumb.height);
+
+  return thumb.toDataURL('image/png');
 }
 
 // New version metadata so updateScene actually re-renders the mutated element.
@@ -452,35 +473,20 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
 
   async function handleDownload(): Promise<void> {
     try {
-      const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = PAGE_WIDTH;
-      pageCanvas.height = PAGE_HEIGHT;
-      const ctx = pageCanvas.getContext('2d')!;
+      // Correct for any residual live-canvas scroll (the view is locked to 0).
+      const appState = excalidrawAPIRef.current?.getAppState();
+      const scrollX = appState?.scrollX ?? 0;
+      const scrollY = appState?.scrollY ?? 0;
 
-      // Fill white background matching the page
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
-
-      const elements = currentPage.elements as Parameters<typeof exportToCanvas>[0]['elements'];
-      if (elements.length > 0) {
-        const elemCanvas = await exportToCanvas({
-          elements,
-          appState: currentPage.appState as Parameters<typeof exportToCanvas>[0]['appState'],
-          files: (currentPage.files ?? null) as Parameters<typeof exportToCanvas>[0]['files'],
-          exportPadding: 0,
-        });
-
-        // Get Excalidraw scroll offsets so elements land at their correct position on the page
-        const appState = excalidrawAPIRef.current?.getAppState();
-        const scrollX = appState?.scrollX ?? 0;
-        const scrollY = appState?.scrollY ?? 0;
-
-        // getCommonBounds returns [minX, minY, maxX, maxY] in scene coordinates
-        const [minX, minY] = getCommonBounds(elements);
-
-        // scene → screen: screenX = sceneX + scrollX
-        ctx.drawImage(elemCanvas, Math.round(minX + scrollX), Math.round(minY + scrollY));
-      }
+      // Same composite the sidebar thumbnail downscales, so download and preview
+      // always agree with each other and with the live canvas.
+      const pageCanvas = await compositePageCanvas(
+        currentPage.elements,
+        currentPage.appState,
+        currentPage.files,
+        scrollX,
+        scrollY
+      );
 
       pageCanvas.toBlob((blob) => {
         if (!blob) return;
