@@ -58,8 +58,21 @@ async function compositePageCanvas(
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
 
-  const typedElements = elements as Parameters<typeof exportToCanvas>[0]['elements'];
-  const drawable = (elements as Array<{ isDeleted?: boolean }>).filter((el) => !el.isDeleted);
+  // exportToCanvas sizes its output to the bounds of the elements it actually
+  // renders: internally it drops soft-deleted elements (kept in the scene for
+  // undo history), empty text, and invisibly small elements. The placement
+  // offset below must come from getCommonBounds over that SAME set — if it saw
+  // e.g. a deleted element sitting above the visible content, the offset and
+  // the canvas origin would disagree and the whole composite would shift.
+  const drawable = (
+    elements as Array<Record<string, unknown> & { type: string }>
+  ).filter((el) => {
+    if (el.isDeleted) return false;
+    if (el.type === 'text' && !el.text) return false;
+    if (Array.isArray(el.points)) return el.points.length >= 2;
+    return el.width !== 0 || el.height !== 0;
+  });
+  const typedElements = drawable as unknown as Parameters<typeof exportToCanvas>[0]['elements'];
 
   if (drawable.length > 0) {
     const elemCanvas = await exportToCanvas({
@@ -69,9 +82,11 @@ async function compositePageCanvas(
       exportPadding: 0,
     });
 
-    // getCommonBounds returns [minX, minY, ...] in scene coordinates.
-    const [minX, minY] = getCommonBounds(typedElements);
-    ctx.drawImage(elemCanvas, Math.round(minX + scrollX), Math.round(minY + scrollY));
+    if (elemCanvas.width > 0 && elemCanvas.height > 0) {
+      // getCommonBounds returns [minX, minY, ...] in scene coordinates.
+      const [minX, minY] = getCommonBounds(typedElements);
+      ctx.drawImage(elemCanvas, Math.round(minX + scrollX), Math.round(minY + scrollY));
+    }
   }
 
   return canvas;
