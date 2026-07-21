@@ -568,6 +568,30 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
             </div>
           </div>
         </div>
+        {/* Page navigation: current page number + up/down between pages. Lives
+            here in the sidebar (not above the canvas) so it doesn't affect the
+            canvas area's height calculation. */}
+        <div className="flex items-center justify-center gap-4 px-4 py-2 border-b border-gray-200">
+          <button
+            onClick={goToPreviousPage}
+            disabled={currentPageIndex === 0}
+            title="Previous page"
+            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronUp className="w-5 h-5" />
+          </button>
+          <span className="text-sm font-medium text-gray-700 tabular-nums select-none">
+            Page {currentPageIndex + 1} / {pages.length}
+          </span>
+          <button
+            onClick={goToNextPage}
+            disabled={currentPageIndex === pages.length - 1}
+            title="Next page"
+            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronDown className="w-5 h-5" />
+          </button>
+        </div>
         {/* Previews Container */}
         <div className="flex-1 overflow-y-auto p-4">
           {pages.map((page, index) => (
@@ -603,31 +627,10 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
         onDownload={handleDownload}
       />
 
-      {/* Main canvas with a top page-navigation bar */}
-      <div className="flex-1 flex flex-col">
-        {/* Top bar: current page number + up/down navigation between pages. */}
-        <div className="flex items-center justify-center gap-4 py-2 bg-white border-b border-gray-200">
-          <button
-            onClick={goToPreviousPage}
-            disabled={currentPageIndex === 0}
-            title="Previous page"
-            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <ChevronUp className="w-5 h-5" />
-          </button>
-          <span className="text-sm font-medium text-gray-700 tabular-nums select-none">
-            Page {currentPageIndex + 1} / {pages.length}
-          </span>
-          <button
-            onClick={goToNextPage}
-            disabled={currentPageIndex === pages.length - 1}
-            title="Next page"
-            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <ChevronDown className="w-5 h-5" />
-          </button>
-        </div>
-
+      {/* Main canvas. Page navigation lives in the sidebar (see the nav bar
+          under the sidebar header) so nothing above the canvas can offset the
+          page-height calculation or introduce a scroll. */}
+      <div className="flex-1 flex">
         {/* A4 Canvas */}
         <div
           ref={canvasAreaRef}
