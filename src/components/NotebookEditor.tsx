@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Excalidraw, exportToCanvas, getCommonBounds } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI, NormalizedZoomValue } from '@excalidraw/excalidraw/types/types';
-import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
+import { Home } from 'lucide-react';
 import { PagePreview } from './PagePreview';
 import { EditorControls, type ControlsSnapshot } from './EditorControls';
 import { measureText, LINE_HEIGHTS } from '../lib/textMeasure';
@@ -591,6 +591,10 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
           overlap the page in Excalidraw's mobile layout (page < 730px wide). */}
       <EditorControls
         snapshot={snapshot}
+        currentPageNumber={currentPageIndex + 1}
+        totalPages={pages.length}
+        onPrevPage={goToPreviousPage}
+        onNextPage={goToNextPage}
         onSetTool={setTool}
         onSetStrokeColor={setStrokeColor}
         onSetBackground={setBackground}
@@ -603,22 +607,15 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
         onDownload={handleDownload}
       />
 
-      {/* Main canvas with vertical navigation */}
+      {/* Main canvas. Page navigation lives in the sidebar (see the nav bar
+          under the sidebar header) so nothing above the canvas can offset the
+          page-height calculation or introduce a scroll. */}
       <div className="flex-1 flex">
         {/* A4 Canvas */}
         <div
           ref={canvasAreaRef}
           className="flex-1 flex items-center justify-center p-8 bg-gray-100"
         >
-          <div className="flex flex-col mr-1 justify-center p-4 bg-white border-r border-gray-200">
-            <button
-              onClick={goToPreviousPage}
-              disabled={currentPageIndex === 0}
-              className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-          </div>
           <div
             ref={canvasWrapRef}
             className="notebook-canvas bg-white shadow-lg"
@@ -650,15 +647,6 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
                 },
               }}
             />
-          </div>
-          <div className="flex flex-col ml-1 justify-center p-4 bg-white border-r border-gray-200">
-            <button
-              onClick={goToNextPage}
-              disabled={currentPageIndex === pages.length - 1}
-              className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
           </div>
         </div>
       </div>
