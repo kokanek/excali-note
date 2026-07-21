@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Excalidraw, exportToCanvas, getCommonBounds } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI, NormalizedZoomValue } from '@excalidraw/excalidraw/types/types';
-import { ChevronLeft, ChevronRight, Home } from 'lucide-react';
+import { ChevronUp, ChevronDown, Home } from 'lucide-react';
 import { PagePreview } from './PagePreview';
 import { EditorControls, type ControlsSnapshot } from './EditorControls';
 import { measureText, LINE_HEIGHTS } from '../lib/textMeasure';
@@ -603,22 +603,36 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
         onDownload={handleDownload}
       />
 
-      {/* Main canvas with vertical navigation */}
-      <div className="flex-1 flex">
+      {/* Main canvas with a top page-navigation bar */}
+      <div className="flex-1 flex flex-col">
+        {/* Top bar: current page number + up/down navigation between pages. */}
+        <div className="flex items-center justify-center gap-4 py-2 bg-white border-b border-gray-200">
+          <button
+            onClick={goToPreviousPage}
+            disabled={currentPageIndex === 0}
+            title="Previous page"
+            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronUp className="w-5 h-5" />
+          </button>
+          <span className="text-sm font-medium text-gray-700 tabular-nums select-none">
+            Page {currentPageIndex + 1} / {pages.length}
+          </span>
+          <button
+            onClick={goToNextPage}
+            disabled={currentPageIndex === pages.length - 1}
+            title="Next page"
+            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronDown className="w-5 h-5" />
+          </button>
+        </div>
+
         {/* A4 Canvas */}
         <div
           ref={canvasAreaRef}
           className="flex-1 flex items-center justify-center p-8 bg-gray-100"
         >
-          <div className="flex flex-col mr-1 justify-center p-4 bg-white border-r border-gray-200">
-            <button
-              onClick={goToPreviousPage}
-              disabled={currentPageIndex === 0}
-              className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-          </div>
           <div
             ref={canvasWrapRef}
             className="notebook-canvas bg-white shadow-lg"
@@ -650,15 +664,6 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
                 },
               }}
             />
-          </div>
-          <div className="flex flex-col ml-1 justify-center p-4 bg-white border-r border-gray-200">
-            <button
-              onClick={goToNextPage}
-              disabled={currentPageIndex === pages.length - 1}
-              className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
           </div>
         </div>
       </div>
