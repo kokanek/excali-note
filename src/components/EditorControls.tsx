@@ -12,6 +12,8 @@ import {
   PenTool,
   Code,
   Download,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -35,6 +37,10 @@ export interface ControlsSnapshot {
 
 interface EditorControlsProps {
   snapshot: ControlsSnapshot;
+  currentPageNumber: number;
+  totalPages: number;
+  onPrevPage: () => void;
+  onNextPage: () => void;
   onSetTool: (tool: string) => void;
   onSetStrokeColor: (color: string) => void;
   onSetBackground: (color: string) => void;
@@ -225,6 +231,10 @@ function PillButton({
 
 export function EditorControls({
   snapshot,
+  currentPageNumber,
+  totalPages,
+  onPrevPage,
+  onNextPage,
   onSetTool,
   onSetStrokeColor,
   onSetBackground,
@@ -260,6 +270,30 @@ export function EditorControls({
   return (
     <div className="w-56 min-w-[14rem] flex flex-col bg-white border-r border-gray-200 overflow-y-auto">
       <div className="p-4">
+        {/* Page navigation: current page number + up/down between pages, above
+            the tools. */}
+        <div className="flex items-center justify-center gap-4 mb-4 pb-3 border-b border-gray-200">
+          <button
+            onClick={onPrevPage}
+            disabled={currentPageNumber <= 1}
+            title="Previous page"
+            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronUp className="w-5 h-5" />
+          </button>
+          <span className="text-sm font-medium text-gray-700 tabular-nums select-none">
+            Page {currentPageNumber} / {totalPages}
+          </span>
+          <button
+            onClick={onNextPage}
+            disabled={currentPageNumber >= totalPages}
+            title="Next page"
+            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronDown className="w-5 h-5" />
+          </button>
+        </div>
+
         <Section title="Tools">
           {/* Numpad layout: tools 1–9 in the grid, eraser (0) in its own row. */}
           <div className="grid grid-cols-3 gap-1.5">
