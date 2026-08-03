@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Excalidraw, exportToCanvas, getCommonBounds } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI, NormalizedZoomValue } from '@excalidraw/excalidraw/types/types';
-import { Home } from 'lucide-react';
+import { Home, Play, X } from 'lucide-react';
 import { PagePreview } from './PagePreview';
 import { EditorControls, type ControlsSnapshot } from './EditorControls';
 import { measureText, LINE_HEIGHTS } from '../lib/textMeasure';
@@ -161,6 +161,8 @@ interface NotebookEditorProps {
 
 export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: NotebookEditorProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [isSlideShow, setIsSlideShow] = useState(false);
+  const [slideDataUrl, setSlideDataUrl] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<ControlsSnapshot>(DEFAULT_SNAPSHOT);
   const [pageHeight, setPageHeight] = useState(PAGE_HEIGHT);
   const excalidrawAPIRef = useRef<ExcalidrawImperativeAPI | null>(null);
@@ -435,6 +437,59 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
     }
   }, [currentPageIndex]);
 
+  // Render the current page to a full-resolution image whenever the slideshow is
+  // open or the page changes. Reuses the same 600x800 composite the download and
+  // sidebar thumbnails are built from, so a slide is pixel-consistent with the
+  // rest of the app. The thumbnail (already on the page) paints instantly while
+  // this async render completes.
+  useEffect(() => {
+    if (!isSlideShow || !currentPage) return;
+    let cancelled = false;
+    setSlideDataUrl(currentPage.thumbnail ?? null);
+    (async () => {
+      const canvas = await compositePageCanvas(
+        currentPage.elements,
+        currentPage.appState,
+        currentPage.files
+      );
+      if (cancelled) return;
+      setSlideDataUrl(canvas.toDataURL('image/png'));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSlideShow, currentPage]);
+
+  // Slideshow keyboard navigation: arrows/space/page keys move between slides,
+  // Escape exits. Only active while presenting. Modeled on the pan-blocking
+  // capture handler above.
+  useEffect(() => {
+    if (!isSlideShow) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsSlideShow(false);
+      } else if (
+        e.key === 'ArrowRight' ||
+        e.key === 'ArrowDown' ||
+        e.key === 'PageDown' ||
+        e.key === ' '
+      ) {
+        e.preventDefault();
+        goToNextPage();
+      } else if (
+        e.key === 'ArrowLeft' ||
+        e.key === 'ArrowUp' ||
+        e.key === 'PageUp'
+      ) {
+        e.preventDefault();
+        goToPreviousPage();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isSlideShow, goToNextPage, goToPreviousPage]);
+
   // Key prop forces Excalidraw to re-render when page changes
   const excalidrawKey = useMemo(() => `excalidraw-${currentPageIndex}`, [currentPageIndex]);
 
@@ -532,6 +587,13 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
               <Home className="w-5 h-5" />
             </button>
             <h1 className="text-lg font-semibold truncate">{notebookName}</h1>
+            <button
+              onClick={() => setIsSlideShow(true)}
+              className="p-2 rounded-full hover:bg-gray-100 flex-shrink-0"
+              title="Start slideshow"
+            >
+              <Play className="w-5 h-5" />
+            </button>
           </div>
           <div className="relative group flex-shrink-0">
             <button
@@ -650,6 +712,30 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
           </div>
         </div>
       </div>
+
+      {/* Presentation / slideshow overlay: full viewport, black letterbox borders.
+          Navigate with arrow/space/page keys, Esc (or the X) to exit. */}
+      {isSlideShow && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
+          <button
+            onClick={() => setIsSlideShow(false)}
+            className="absolute top-4 right-4 p-2 rounded-full text-white/70 hover:text-white hover:bg-white/10"
+            title="Exit slideshow (Esc)"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          {(slideDataUrl ?? currentPage?.thumbnail) && (
+            <img
+              src={slideDataUrl ?? currentPage?.thumbnail}
+              alt={`Page ${currentPageIndex + 1}`}
+              className="max-h-full max-w-full object-contain"
+            />
+          )}
+          <div className="absolute bottom-4 text-white/70 text-sm select-none">
+            Page {currentPageIndex + 1} of {pages.length}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
