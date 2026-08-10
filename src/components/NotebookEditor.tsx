@@ -252,13 +252,23 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
           return;
         }
 
+        // Guard against a stray empty onChange wiping saved image bytes.
+        // Excalidraw stores image binaries in a separate `files` map keyed by
+        // fileId; if it ever hands back an empty map while the page already has
+        // files, keep the existing ones rather than overwriting good data with
+        // nothing. (The image element still references those fileIds.)
+        const existingFiles = pages[currentPageIndex].files;
+        const incomingHasFiles = files && Object.keys(files).length > 0;
+        const effectiveFiles =
+          incomingHasFiles || !existingFiles ? files : existingFiles;
+
         // Regenerate the thumbnail only here — i.e. after the user pauses on a
         // real commit (letter typed, shape added/moved), and only for the page
         // being edited. This is what stops the high-frequency preview redraws.
         const thumbnail = await renderPageThumbnail(
           elements,
           pages[currentPageIndex].appState,
-          files
+          effectiveFiles
         );
 
         const newPages = cloneDeep(pages);
@@ -266,7 +276,7 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
           elements: cloneDeep(elements),
           id: pages[currentPageIndex].id,
           appState: pages[currentPageIndex].appState,
-          files: cloneDeep(files),
+          files: cloneDeep(effectiveFiles),
           thumbnail,
         };
 
@@ -692,6 +702,14 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
               excalidrawAPI={setExcalidrawAPI}
               initialData={{
                 elements: currentPage.elements,
+                // Rehydrate image bytes on every remount. Excalidraw keeps image
+                // binaries in a separate `files` store keyed by fileId; without
+                // handing these back on mount, image elements point at fileIds
+                // Excalidraw no longer has in memory → broken-image placeholder
+                // after a page switch or reload.
+                files: currentPage.files as Parameters<
+                  typeof exportToCanvas
+                >[0]['files'],
                 appState: {
                   zoom: { value: zoomValue as NormalizedZoomValue },
                   scrollX: 0,
