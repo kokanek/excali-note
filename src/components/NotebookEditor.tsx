@@ -587,8 +587,10 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
       {/* Sidebar with previews */}
       <div className="w-64 min-w-[16rem] flex flex-col bg-white border-r border-gray-200">
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="border-b border-gray-200">
+          {/* Row 1: home affordance + app name (congruent with other apps —
+              the logo/name lockup next to the home icon is the "go home" marker). */}
+          <div className="flex items-center gap-2 px-4 pt-4">
             <button
               onClick={onBack}
               className="p-2 rounded-full hover:bg-gray-100 flex-shrink-0"
@@ -596,47 +598,57 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
             >
               <Home className="w-5 h-5" />
             </button>
-            <h1 className="text-lg font-semibold truncate">{notebookName}</h1>
-            <button
-              onClick={() => setIsSlideShow(true)}
-              className="p-2 rounded-full hover:bg-gray-100 flex-shrink-0"
-              title="Start slideshow"
-            >
-              <Play className="w-5 h-5" />
-            </button>
+            <h1 className="text-lg font-bold truncate">Excalinote</h1>
           </div>
-          <div className="relative group flex-shrink-0">
-            <button
-              onClick={() => {
-                const newPages = [...pages];
-                newPages.push({
-                  id: `page-${pages.length + 1}`,
-                  elements: [],
-                  appState: {
-                    viewBackgroundColor: '#ffffff',
-                  },
-                });
-                onPagesChange(newPages);
-              }}
-              className="p-2 rounded-full hover:bg-gray-100"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+          {/* Row 2: the note's own name (aligned left) with its actions
+              — slideshow + add page — grouped to the right. */}
+          <div className="flex items-center justify-between gap-2 px-4 pt-2 pb-4">
+            <h2 className="text-base font-semibold truncate min-w-0" title={notebookName}>
+              {notebookName}
+            </h2>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                onClick={() => setIsSlideShow(true)}
+                className="p-2 rounded-full hover:bg-gray-100"
+                title="Start slideshow"
               >
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-            </button>
-            <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm px-2 py-1 rounded top-0 left-full ml-2 whitespace-nowrap z-10">
-              Add new page
+                <Play className="w-5 h-5" />
+              </button>
+              <div className="relative group">
+                <button
+                  onClick={() => {
+                    const newPages = [...pages];
+                    newPages.push({
+                      id: `page-${pages.length + 1}`,
+                      elements: [],
+                      appState: {
+                        viewBackgroundColor: '#ffffff',
+                      },
+                    });
+                    onPagesChange(newPages);
+                  }}
+                  className="p-2 rounded-full hover:bg-gray-100"
+                  title="Add new page"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
+                <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm px-2 py-1 rounded top-full right-0 mt-1 whitespace-nowrap z-10">
+                  Add new page
+                </div>
+              </div>
             </div>
           </div>
         </div>
