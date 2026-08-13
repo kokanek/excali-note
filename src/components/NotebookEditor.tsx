@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Excalidraw, exportToCanvas, getCommonBounds } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI, NormalizedZoomValue } from '@excalidraw/excalidraw/types/types';
-import { Home, Play, X } from 'lucide-react';
+import { Play, X } from 'lucide-react';
 import { PagePreview } from './PagePreview';
 import { EditorControls, type ControlsSnapshot } from './EditorControls';
 import { measureText, LINE_HEIGHTS } from '../lib/textMeasure';
@@ -588,32 +588,36 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
       <div className="w-64 min-w-[16rem] flex flex-col bg-white border-r border-gray-200">
         {/* Sidebar Header */}
         <div className="border-b border-gray-200">
-          {/* Row 1: home affordance + app name (congruent with other apps —
-              the logo/name lockup next to the home icon is the "go home" marker). */}
-          <div className="flex items-center gap-2 px-4 pt-4">
+          {/* Row 1: the app name itself is the "go home" affordance — click it
+              to return to the dashboard. A divider separates it from the note. */}
+          <div className="px-4 py-4 border-b border-gray-200">
             <button
               onClick={onBack}
-              className="p-2 rounded-full hover:bg-gray-100 flex-shrink-0"
-              title="Back to dashboard"
+              className="text-lg font-bold hover:text-blue-600 transition-colors"
+              title="Back to home"
             >
-              <Home className="w-5 h-5" />
+              Excalinote
             </button>
-            <h1 className="text-lg font-bold truncate">Excalinote</h1>
           </div>
           {/* Row 2: the note's own name (aligned left) with its actions
-              — slideshow + add page — grouped to the right. */}
-          <div className="flex items-center justify-between gap-2 px-4 pt-2 pb-4">
+              — present + add page — grouped to the right. */}
+          <div className="flex items-center justify-between gap-2 px-4 py-3">
             <h2 className="text-base font-semibold truncate min-w-0" title={notebookName}>
               {notebookName}
             </h2>
             <div className="flex items-center gap-1 flex-shrink-0">
-              <button
-                onClick={() => setIsSlideShow(true)}
-                className="p-2 rounded-full hover:bg-gray-100"
-                title="Start slideshow"
-              >
-                <Play className="w-5 h-5" />
-              </button>
+              <div className="relative group">
+                <button
+                  onClick={() => setIsSlideShow(true)}
+                  className="p-2 rounded-full hover:bg-gray-100"
+                  title="Present"
+                >
+                  <Play className="w-5 h-5" />
+                </button>
+                <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm px-2 py-1 rounded top-full right-0 mt-1 whitespace-nowrap z-10">
+                  Present
+                </div>
+              </div>
               <div className="relative group">
                 <button
                   onClick={() => {
