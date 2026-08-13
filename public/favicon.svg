@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- hand-drawn paper card -->
+  <path d="M14 9 Q13 8 15 8 L45 8.5 Q47 9 47 11 L47.5 52 Q47 55 44 54.5 L16 55 Q13 55 13.5 52 L13 11 Q13 9.5 14 9 Z"
+        fill="#FFFDF5" stroke="#1E1E1E" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- folded corner -->
+  <path d="M40 8.5 L47 15 L41 15 Q40 15 40 14 Z" fill="#F4E9D0" stroke="#1E1E1E" stroke-width="1.6" stroke-linejoin="round"/>
+  <!-- wavy hand-written ink lines -->
+  <path d="M19 24 Q24 22.5 29 24 T39 24" fill="none" stroke="#1971C2" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M19 32 Q25 30.5 31 32 T42 32" fill="none" stroke="#1E1E1E" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M19 40 Q24 38.7 29 40 T38 40" fill="none" stroke="#1E1E1E" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- pencil crossing the page -->
+  <g transform="rotate(38 44 44)">
+    <rect x="40" y="30" width="7" height="20" rx="1.5" fill="#F0A83B" stroke="#1E1E1E" stroke-width="1.8"/>
+    <path d="M40 50 L43.5 56 L47 50 Z" fill="#E8D3A0" stroke="#1E1E1E" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M42 54 L45 54 L43.5 56 Z" fill="#1E1E1E"/>
+    <line x1="40" y1="34" x2="47" y2="34" stroke="#1E1E1E" stroke-width="1.6"/>
+  </g>
+</svg>

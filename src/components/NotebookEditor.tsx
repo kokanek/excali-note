@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Excalidraw, exportToCanvas, getCommonBounds } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI, NormalizedZoomValue } from '@excalidraw/excalidraw/types/types';
-import { Home, Play, X } from 'lucide-react';
+import { Play, X } from 'lucide-react';
 import { PagePreview } from './PagePreview';
 import { EditorControls, type ControlsSnapshot } from './EditorControls';
 import { measureText, LINE_HEIGHTS } from '../lib/textMeasure';
@@ -587,56 +587,73 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
       {/* Sidebar with previews */}
       <div className="w-64 min-w-[16rem] flex flex-col bg-white border-r border-gray-200">
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="border-b border-gray-200">
+          {/* Row 1: the app name itself is the "go home" affordance — click it
+              to return to the dashboard. A divider separates it from the note. */}
+          <div className="px-4 py-4 border-b border-gray-200">
             <button
               onClick={onBack}
-              className="p-2 rounded-full hover:bg-gray-100 flex-shrink-0"
-              title="Back to dashboard"
+              className="flex items-center gap-2 text-lg font-bold hover:text-blue-600 transition-colors"
+              title="Back to home"
             >
-              <Home className="w-5 h-5" />
-            </button>
-            <h1 className="text-lg font-semibold truncate">{notebookName}</h1>
-            <button
-              onClick={() => setIsSlideShow(true)}
-              className="p-2 rounded-full hover:bg-gray-100 flex-shrink-0"
-              title="Start slideshow"
-            >
-              <Play className="w-5 h-5" />
+              <img src="/favicon.svg" alt="" className="w-6 h-6 flex-shrink-0" />
+              Excalinote
             </button>
           </div>
-          <div className="relative group flex-shrink-0">
-            <button
-              onClick={() => {
-                const newPages = [...pages];
-                newPages.push({
-                  id: `page-${pages.length + 1}`,
-                  elements: [],
-                  appState: {
-                    viewBackgroundColor: '#ffffff',
-                  },
-                });
-                onPagesChange(newPages);
-              }}
-              className="p-2 rounded-full hover:bg-gray-100"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-            </button>
-            <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm px-2 py-1 rounded top-0 left-full ml-2 whitespace-nowrap z-10">
-              Add new page
+          {/* Row 2: the note's own name (aligned left) with its actions
+              — present + add page — grouped to the right. */}
+          <div className="flex items-center justify-between gap-2 px-4 py-3">
+            <h2 className="text-base font-semibold truncate min-w-0" title={notebookName}>
+              {notebookName}
+            </h2>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="relative group">
+                <button
+                  onClick={() => setIsSlideShow(true)}
+                  className="p-2 rounded-full hover:bg-gray-100"
+                  title="Present"
+                >
+                  <Play className="w-5 h-5" />
+                </button>
+                <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm px-2 py-1 rounded top-full right-0 mt-1 whitespace-nowrap z-10">
+                  Present
+                </div>
+              </div>
+              <div className="relative group">
+                <button
+                  onClick={() => {
+                    const newPages = [...pages];
+                    newPages.push({
+                      id: `page-${pages.length + 1}`,
+                      elements: [],
+                      appState: {
+                        viewBackgroundColor: '#ffffff',
+                      },
+                    });
+                    onPagesChange(newPages);
+                  }}
+                  className="p-2 rounded-full hover:bg-gray-100"
+                  title="Add new page"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
+                <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-sm px-2 py-1 rounded top-full right-0 mt-1 whitespace-nowrap z-10">
+                  Add new page
+                </div>
+              </div>
             </div>
           </div>
         </div>
