@@ -593,9 +593,10 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
           <div className="px-4 py-4 border-b border-gray-200">
             <button
               onClick={onBack}
-              className="text-lg font-bold hover:text-blue-600 transition-colors"
+              className="flex items-center gap-2 text-lg font-bold hover:text-blue-600 transition-colors"
               title="Back to home"
             >
+              <img src="/favicon.svg" alt="" className="w-6 h-6 flex-shrink-0" />
               Excalinote
             </button>
           </div>
