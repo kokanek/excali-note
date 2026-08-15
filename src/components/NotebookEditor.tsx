@@ -31,8 +31,18 @@ const DEFAULT_SNAPSHOT: ControlsSnapshot = {
   fontFamily: 1,
 };
 
-// Sidebar thumbnail width in px; height follows the page aspect ratio.
-const THUMB_WIDTH = 300;
+// Sidebar thumbnail width in px; height follows the page aspect ratio. Sized
+// above the CSS width of the sidebar preview so the <img> isn't upscaled on
+// HiDPI screens.
+const THUMB_WIDTH = 450;
+
+// Supersampling factor for the page composite. The scene is rasterized at
+// EXPORT_SCALE device pixels per scene unit, so both the download and the
+// thumbnail are built from a high-resolution raster instead of a 1x one. This
+// keeps thin, high-frequency strokes (dashed/dotted lines) sharp: the download
+// is retina-crisp, and the thumbnail has enough source detail to survive the
+// downscale instead of averaging its dashes into the gaps.
+const EXPORT_SCALE = 3;
 
 // Composite a page onto a full-resolution PAGE_WIDTH x PAGE_HEIGHT canvas: a
 // white sheet with the elements rendered by Excalidraw's real engine and placed
@@ -49,14 +59,16 @@ async function compositePageCanvas(
   scrollX = 0,
   scrollY = 0
 ): Promise<HTMLCanvasElement> {
+  // Rasterize at EXPORT_SCALE device pixels per scene unit. Every scene
+  // coordinate below is therefore multiplied by EXPORT_SCALE when placed.
   const canvas = document.createElement('canvas');
-  canvas.width = PAGE_WIDTH;
-  canvas.height = PAGE_HEIGHT;
+  canvas.width = PAGE_WIDTH * EXPORT_SCALE;
+  canvas.height = PAGE_HEIGHT * EXPORT_SCALE;
   const ctx = canvas.getContext('2d')!;
 
   // White page background.
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // exportToCanvas sizes its output to the bounds of the elements it actually
   // renders: internally it drops soft-deleted elements (kept in the scene for
@@ -80,12 +92,27 @@ async function compositePageCanvas(
       appState: appState as Parameters<typeof exportToCanvas>[0]['appState'],
       files: (files ?? null) as Parameters<typeof exportToCanvas>[0]['files'],
       exportPadding: 0,
+      // Rasterize the scene at EXPORT_SCALE so thin strokes have enough pixels
+      // to stay sharp. This Excalidraw build sets the export canvas to exactly
+      // the returned width/height (scale only transforms the drawing), so the
+      // dimensions must be pre-multiplied by scale — otherwise the scene is
+      // drawn EXPORT_SCALE× into a 1× canvas and only its top-left corner fits.
+      getDimensions: (width, height) => ({
+        width: width * EXPORT_SCALE,
+        height: height * EXPORT_SCALE,
+        scale: EXPORT_SCALE,
+      }),
     });
 
     if (elemCanvas.width > 0 && elemCanvas.height > 0) {
-      // getCommonBounds returns [minX, minY, ...] in scene coordinates.
+      // getCommonBounds returns [minX, minY, ...] in scene coordinates; the
+      // composite is in device pixels, so scale the placement offset to match.
       const [minX, minY] = getCommonBounds(typedElements);
-      ctx.drawImage(elemCanvas, Math.round(minX + scrollX), Math.round(minY + scrollY));
+      ctx.drawImage(
+        elemCanvas,
+        Math.round((minX + scrollX) * EXPORT_SCALE),
+        Math.round((minY + scrollY) * EXPORT_SCALE)
+      );
     }
   }
 
@@ -104,13 +131,32 @@ async function renderPageThumbnail(
   const pageCanvas = await compositePageCanvas(elements, appState, files);
 
   const scale = THUMB_WIDTH / PAGE_WIDTH;
+  const targetW = Math.round(PAGE_WIDTH * scale);
+  const targetH = Math.round(PAGE_HEIGHT * scale);
+
+  // Downscale from the high-res composite (PAGE_* x EXPORT_SCALE) in repeated
+  // halving steps rather than one big shrink: each step's box filter blends far
+  // fewer neighbours, so dashed/dotted strokes keep their contrast instead of
+  // being averaged into the surrounding white.
+  let src: HTMLCanvasElement = pageCanvas;
+  while (src.width > targetW * 2) {
+    const half = document.createElement('canvas');
+    half.width = Math.max(targetW, Math.round(src.width / 2));
+    half.height = Math.max(targetH, Math.round(src.height / 2));
+    const halfCtx = half.getContext('2d')!;
+    halfCtx.imageSmoothingEnabled = true;
+    halfCtx.imageSmoothingQuality = 'high';
+    halfCtx.drawImage(src, 0, 0, half.width, half.height);
+    src = half;
+  }
+
   const thumb = document.createElement('canvas');
-  thumb.width = Math.round(PAGE_WIDTH * scale);
-  thumb.height = Math.round(PAGE_HEIGHT * scale);
+  thumb.width = targetW;
+  thumb.height = targetH;
   const ctx = thumb.getContext('2d')!;
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(pageCanvas, 0, 0, thumb.width, thumb.height);
+  ctx.drawImage(src, 0, 0, targetW, targetH);
 
   return thumb.toDataURL('image/png');
 }
