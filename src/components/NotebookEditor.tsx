@@ -34,6 +34,17 @@ const DEFAULT_SNAPSHOT: ControlsSnapshot = {
 // Sidebar thumbnail width in px; height follows the page aspect ratio.
 const THUMB_WIDTH = 300;
 
+// Breathing room (scene px) added around the element bounds when rasterizing.
+// exportToCanvas sizes its output to the exact element bounds, but Excalidraw's
+// hand-drawn (roughjs) strokes are centered on the path and overshoot those
+// bounds by ~strokeWidth/2 plus roughness jitter. With zero padding the canvas
+// is also integer-floored to the bounds, so a fractional-width element (any
+// shape drawn by hand lands on fractional coords) loses its right/bottom edge
+// entirely — the stroke falls just outside the canvas. A few px of padding
+// gives every edge room; the placement offset below subtracts it back out so
+// the element still lands at its true scene position.
+const EXPORT_PADDING = 8;
+
 // Composite a page onto a full-resolution PAGE_WIDTH x PAGE_HEIGHT canvas: a
 // white sheet with the elements rendered by Excalidraw's real engine and placed
 // at their scene coordinates. This is the single source of truth for both the
@@ -59,11 +70,12 @@ async function compositePageCanvas(
   ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
 
   // exportToCanvas sizes its output to the bounds of the elements it actually
-  // renders: internally it drops soft-deleted elements (kept in the scene for
-  // undo history), empty text, and invisibly small elements. The placement
-  // offset below must come from getCommonBounds over that SAME set — if it saw
-  // e.g. a deleted element sitting above the visible content, the offset and
-  // the canvas origin would disagree and the whole composite would shift.
+  // renders (plus EXPORT_PADDING on every side): internally it drops
+  // soft-deleted elements (kept in the scene for undo history), empty text, and
+  // invisibly small elements. The placement offset below must come from
+  // getCommonBounds over that SAME set — if it saw e.g. a deleted element
+  // sitting above the visible content, the offset and the canvas origin would
+  // disagree and the whole composite would shift.
   const drawable = (
     elements as Array<Record<string, unknown> & { type: string }>
   ).filter((el) => {
@@ -79,13 +91,19 @@ async function compositePageCanvas(
       elements: typedElements,
       appState: appState as Parameters<typeof exportToCanvas>[0]['appState'],
       files: (files ?? null) as Parameters<typeof exportToCanvas>[0]['files'],
-      exportPadding: 0,
+      exportPadding: EXPORT_PADDING,
     });
 
     if (elemCanvas.width > 0 && elemCanvas.height > 0) {
-      // getCommonBounds returns [minX, minY, ...] in scene coordinates.
+      // getCommonBounds returns [minX, minY, ...] in scene coordinates. The
+      // elemCanvas carries EXPORT_PADDING of margin on every side, so its origin
+      // sits at (minX - EXPORT_PADDING, minY - EXPORT_PADDING) in scene space.
       const [minX, minY] = getCommonBounds(typedElements);
-      ctx.drawImage(elemCanvas, Math.round(minX + scrollX), Math.round(minY + scrollY));
+      ctx.drawImage(
+        elemCanvas,
+        Math.round(minX - EXPORT_PADDING + scrollX),
+        Math.round(minY - EXPORT_PADDING + scrollY)
+      );
     }
   }
 
