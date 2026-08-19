@@ -31,17 +31,8 @@ const DEFAULT_SNAPSHOT: ControlsSnapshot = {
   fontFamily: 1,
 };
 
-// Sidebar thumbnail width in px; height follows the page aspect ratio. Bumped
-// above the sidebar's on-screen box (~224px) so the <img> is never upscaled on
-// HiDPI screens (PagePreview renders it object-fill).
-const THUMB_WIDTH = 400;
-
-// Supersampling factor for the shared page composite. The composite is
-// rasterized at EXPORT_SCALE device pixels per scene unit instead of 1×, which
-// fixes two things at once: downloads become retina-crisp (1800x2400 instead of
-// a blurry 600x800), and the thumbnail downscales from a high-res source so
-// thin/dashed strokes keep their contrast instead of washing out to gray.
-const EXPORT_SCALE = 3;
+// Sidebar thumbnail width in px; height follows the page aspect ratio.
+const THUMB_WIDTH = 300;
 
 // Breathing room (scene px) added around the element bounds when rasterizing.
 // exportToCanvas sizes its output to the exact element bounds, but Excalidraw's
@@ -54,11 +45,10 @@ const EXPORT_SCALE = 3;
 // the element still lands at its true scene position.
 const EXPORT_PADDING = 8;
 
-// Composite a page onto a full-resolution PAGE_WIDTH x PAGE_HEIGHT sheet,
-// supersampled by EXPORT_SCALE: a white sheet with the elements rendered by
-// Excalidraw's real engine and placed at their scene coordinates. This is the
-// single source of truth for both the download and the sidebar thumbnail, so
-// the two can never drift apart.
+// Composite a page onto a full-resolution PAGE_WIDTH x PAGE_HEIGHT canvas: a
+// white sheet with the elements rendered by Excalidraw's real engine and placed
+// at their scene coordinates. This is the single source of truth for both the
+// download and the sidebar thumbnail, so the two can never drift apart.
 //
 // Elements live in scene coordinates; on the page the view is locked to scroll
 // 0, so scene coords map directly onto the sheet. scrollX/scrollY are passed
@@ -71,13 +61,13 @@ async function compositePageCanvas(
   scrollY = 0
 ): Promise<HTMLCanvasElement> {
   const canvas = document.createElement('canvas');
-  canvas.width = PAGE_WIDTH * EXPORT_SCALE;
-  canvas.height = PAGE_HEIGHT * EXPORT_SCALE;
+  canvas.width = PAGE_WIDTH;
+  canvas.height = PAGE_HEIGHT;
   const ctx = canvas.getContext('2d')!;
 
-  // White page background (fill the whole device-pixel canvas).
+  // White page background.
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
 
   // exportToCanvas sizes its output to the bounds of the elements it actually
   // renders (plus EXPORT_PADDING on every side): internally it drops
@@ -102,28 +92,17 @@ async function compositePageCanvas(
       appState: appState as Parameters<typeof exportToCanvas>[0]['appState'],
       files: (files ?? null) as Parameters<typeof exportToCanvas>[0]['files'],
       exportPadding: EXPORT_PADDING,
-      // Rasterize at EXPORT_SCALE device pixels per scene unit. exportToCanvas
-      // sizes the output canvas to the returned width/height and paints the
-      // scene into it at `scale`, so both must be multiplied to actually get a
-      // higher-resolution raster (returning the natural w/h with scale 3 would
-      // clip the scene to the top-left ninth).
-      getDimensions: (w, h) => ({
-        width: w * EXPORT_SCALE,
-        height: h * EXPORT_SCALE,
-        scale: EXPORT_SCALE,
-      }),
     });
 
     if (elemCanvas.width > 0 && elemCanvas.height > 0) {
       // getCommonBounds returns [minX, minY, ...] in scene coordinates. The
       // elemCanvas carries EXPORT_PADDING of margin on every side, so its origin
       // sits at (minX - EXPORT_PADDING, minY - EXPORT_PADDING) in scene space.
-      // The composite is supersampled, so the placement offset is in device px.
       const [minX, minY] = getCommonBounds(typedElements);
       ctx.drawImage(
         elemCanvas,
-        Math.round((minX - EXPORT_PADDING + scrollX) * EXPORT_SCALE),
-        Math.round((minY - EXPORT_PADDING + scrollY) * EXPORT_SCALE)
+        Math.round(minX - EXPORT_PADDING + scrollX),
+        Math.round(minY - EXPORT_PADDING + scrollY)
       );
     }
   }
@@ -131,45 +110,10 @@ async function compositePageCanvas(
   return canvas;
 }
 
-// Downscale a canvas to a target size by halving repeatedly until within 2x of
-// the target, then a final draw. A single large shrink runs one bilinear pass
-// that averages each source pixel with only a couple of neighbours, so a thin
-// dash gets blended with the white gap beside it and fades to gray. Halving in
-// steps keeps every intermediate within the filter's reach, so dark ink is
-// carried down through each pass and dashes stay crisp.
-function downscaleCanvas(
-  source: HTMLCanvasElement,
-  targetWidth: number,
-  targetHeight: number
-): HTMLCanvasElement {
-  let current = source;
-  while (current.width > targetWidth * 2 && current.height > targetHeight * 2) {
-    const nextWidth = Math.max(targetWidth, Math.round(current.width / 2));
-    const nextHeight = Math.max(targetHeight, Math.round(current.height / 2));
-    const step = document.createElement('canvas');
-    step.width = nextWidth;
-    step.height = nextHeight;
-    const stepCtx = step.getContext('2d')!;
-    stepCtx.imageSmoothingEnabled = true;
-    stepCtx.imageSmoothingQuality = 'high';
-    stepCtx.drawImage(current, 0, 0, nextWidth, nextHeight);
-    current = step;
-  }
-
-  const out = document.createElement('canvas');
-  out.width = targetWidth;
-  out.height = targetHeight;
-  const ctx = out.getContext('2d')!;
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(current, 0, 0, targetWidth, targetHeight);
-  return out;
-}
-
-// Render a page-shaped thumbnail. Built by downscaling the supersampled page
-// composite, so the thumbnail is a faithful miniature of the download (and
-// therefore of the live canvas) rather than an independently positioned
-// re-render that can drift. Returns a PNG data URL.
+// Render a page-shaped thumbnail. Built by downscaling the full-resolution page
+// composite in one step, so the thumbnail is a pixel-exact miniature of the
+// download (and therefore of the live canvas) rather than an independently
+// positioned re-render that can drift. Returns a PNG data URL.
 async function renderPageThumbnail(
   elements: unknown[],
   appState: unknown,
@@ -178,11 +122,13 @@ async function renderPageThumbnail(
   const pageCanvas = await compositePageCanvas(elements, appState, files);
 
   const scale = THUMB_WIDTH / PAGE_WIDTH;
-  const thumb = downscaleCanvas(
-    pageCanvas,
-    Math.round(PAGE_WIDTH * scale),
-    Math.round(PAGE_HEIGHT * scale)
-  );
+  const thumb = document.createElement('canvas');
+  thumb.width = Math.round(PAGE_WIDTH * scale);
+  thumb.height = Math.round(PAGE_HEIGHT * scale);
+  const ctx = thumb.getContext('2d')!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(pageCanvas, 0, 0, thumb.width, thumb.height);
 
   return thumb.toDataURL('image/png');
 }
