@@ -721,7 +721,7 @@ export function NotebookEditor({ pages, onPagesChange, onBack, notebookName }: N
         {/* A4 Canvas */}
         <div
           ref={canvasAreaRef}
-          className="flex-1 flex items-center justify-center p-8 bg-gray-100"
+          className="flex-1 flex items-center justify-center p-8 paper-dots"
         >
           <div
             ref={canvasWrapRef}
