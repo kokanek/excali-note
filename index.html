@@ -5,6 +5,37 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Excalinote</title>
+    <meta
+      name="description"
+      content="The Excalidraw we all love, but as pages in a notebook. Free, in your browser."
+    />
+
+    <!--
+      Social share card (issue #22). Crawlers read this static HTML (they don't
+      run the SPA), so tags here cover both / and /landing. Image paths are
+      root-relative, so the card resolves against whatever origin serves the
+      app — no hard coded domain. If you pin a fixed production domain, you can
+      switch og:image / twitter:image (and add an og:url) to absolute URLs for
+      maximum compatibility with older crawlers.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ExcaliNote — Excalidraw, as pages in a notebook" />
+    <meta
+      property="og:description"
+      content="The Excalidraw we all love, but as pages in a notebook. Free, in your browser."
+    />
+    <meta property="og:image" content="/og-cover.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="ExcaliNote — the Excalidraw we all love, but as pages in a notebook." />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ExcaliNote — Excalidraw, as pages in a notebook" />
+    <meta
+      name="twitter:description"
+      content="The Excalidraw we all love, but as pages in a notebook. Free, in your browser."
+    />
+    <meta name="twitter:image" content="/og-cover.png" />
   </head>
   <body>
     <div id="root"></div>
