@@ -111,11 +111,11 @@ export function Landing() {
       </header>
 
       <section className="ln-hero">
-        <span className="ln-kicker">Draw. Flip the page. Keep going.</span>
+        <span className="ln-kicker">Make a note. Flip the page. Keep going.</span>
         <h1 className="ln-wordmark">
           Excali<span className="accent">Note</span>
         </h1>
-        <p className="ln-punch">The Excalidraw we love, as pages in your notebook.</p>
+        <p className="ln-punch">The Excalidraw we all love, but as pages in a notebook.</p>
         <div className="ln-hero-cta">
           <a className="ln-btn ln-btn--blue ln-btn--lg" href={APP_URL}>
             Start a notebook
