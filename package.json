@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.17.3",
+    "@fontsource/darker-grotesque": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
     "lodash": "^4.17.21",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
