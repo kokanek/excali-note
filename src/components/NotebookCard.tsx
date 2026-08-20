@@ -52,17 +52,17 @@ export function NotebookCard({ notebook, viewMode, onSelect, onDelete }: Noteboo
     return (
       <div
         onClick={onSelect}
-        className="flex items-center gap-4 p-4 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer border border-gray-200"
+        className="flex items-center gap-4 p-4 nb-card cursor-pointer"
       >
-        <div className="flex-shrink-0 w-32 h-[181px] border border-gray-200 rounded overflow-hidden">
+        <div className="flex-shrink-0 w-32 h-[181px] border-[3px] border-[#111827] rounded overflow-hidden">
           {thumbnail}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-semibold text-gray-900 truncate">{notebook.name}</h3>
-          <p className="text-sm text-gray-500 mt-1">
+          <h3 className="text-xl font-extrabold text-[#111827] truncate">{notebook.name}</h3>
+          <p className="text-base text-[#6b7280] mt-1 font-medium">
             {notebook.pages.length} {notebook.pages.length === 1 ? 'page' : 'pages'}
           </p>
-          <p className="text-sm text-gray-400 mt-1">Updated {formatDate(notebook.updatedAt)}</p>
+          <p className="text-sm text-[#9ca3af] mt-1 font-medium">Updated {formatDate(notebook.updatedAt)}</p>
         </div>
         <button
           onClick={handleDelete}
@@ -78,24 +78,24 @@ export function NotebookCard({ notebook, viewMode, onSelect, onDelete }: Noteboo
   return (
     <div
       onClick={onSelect}
-      className="group bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden border border-gray-200"
+      className="group nb-card cursor-pointer overflow-hidden"
     >
-      <div className="aspect-[1/1.414] border-b border-gray-200 relative bg-gray-50">
+      <div className="aspect-[1/1.414] border-b-[3px] border-[#111827] relative bg-white">
         {thumbnail}
         <button
           onClick={handleDelete}
-          className="absolute top-2 right-2 p-2 bg-white text-gray-400 hover:text-red-600 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-2 right-2 p-2 bg-white text-gray-400 hover:text-red-600 rounded-lg border-2 border-[#111827] shadow-[2px_2px_0_0_#111827] opacity-0 group-hover:opacity-100 transition-opacity"
           title="Delete notebook"
         >
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
       <div className="p-4">
-        <h3 className="font-semibold text-gray-900 truncate mb-1">{notebook.name}</h3>
-        <p className="text-sm text-gray-500">
+        <h3 className="text-lg font-extrabold text-[#111827] truncate mb-1">{notebook.name}</h3>
+        <p className="text-base text-[#6b7280] font-medium">
           {notebook.pages.length} {notebook.pages.length === 1 ? 'page' : 'pages'}
         </p>
-        <p className="text-xs text-gray-400 mt-1">Updated {formatDate(notebook.updatedAt)}</p>
+        <p className="text-sm text-[#9ca3af] mt-1 font-medium">Updated {formatDate(notebook.updatedAt)}</p>
       </div>
     </div>
   );

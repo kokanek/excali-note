@@ -22,3 +22,15 @@
 .excalidraw-wrapper {
   height: 100%;
 }
+
+/*
+ * Cream dotted "paper" backdrop — the same recipe as the home page and /landing
+ * (issue #22 PR feedback). Used for the editor's canvas area, the region that
+ * surrounds the page sheet. The white sheet itself stays untouched so the
+ * drawing surface remains pure Excalidraw.
+ */
+.paper-dots {
+  background-color: #f4f1ea;
+  background-image: radial-gradient(rgba(17, 24, 39, 0.18) 1.4px, transparent 1.4px);
+  background-size: 22px 22px;
+}

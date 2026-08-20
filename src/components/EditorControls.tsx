@@ -432,10 +432,12 @@ export function EditorControls({
         </Section>
 
         <div className="mt-2 pt-3 border-t border-gray-200">
+          {/* The one primary action in the rail — given a yellow accent (issue
+              #22). Every other control stays Excalidraw-native. */}
           <button
             onClick={onDownload}
             title="Download this page as PNG"
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-md border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 transition"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold rounded-md border-2 border-[#111827] text-[#111827] bg-[#facc15] shadow-[2px_2px_0_0_#111827] hover:shadow-[1px_1px_0_0_#111827] hover:translate-x-px hover:translate-y-px transition"
           >
             <Download className="w-4 h-4" />
             Download page

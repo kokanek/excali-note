@@ -1,0 +1,141 @@
+/*
+ * Neobrutalist styling for the home (dashboard) surface — issue #22.
+ *
+ * Shares the palette and primitives of the /landing page (Landing.css): the
+ * cream dotted paper background, the blue + yellow primaries, 3px ink borders
+ * and hard offset shadows. Scoped under `.nb-home` so none of it leaks into the
+ * editor, whose canvas and control rail deliberately keep Excalidraw's own look.
+ * Fonts are self hosted through @fontsource (imported in Dashboard.tsx).
+ */
+
+.nb-home {
+  --paper: #f4f1ea;
+  --ink: #111827;
+  --blue: #2563eb;
+  --yellow: #facc15;
+  --muted: #6b7280;
+
+  font-family: 'Darker Grotesque', system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  background-color: var(--paper);
+  /* dotted paper grid, identical recipe to the landing page */
+  background-image: radial-gradient(rgba(17, 24, 39, 0.18) 1.4px, transparent 1.4px);
+  background-size: 22px 22px;
+  min-height: 100vh;
+}
+
+/* ---------- header ---------- */
+.nb-header {
+  background-color: var(--paper);
+  border-bottom: 3px solid var(--ink);
+}
+.nb-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--ink);
+}
+.nb-brand img {
+  width: 30px;
+  height: 30px;
+}
+
+/* ---------- buttons ---------- */
+.nb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 11px 18px;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 0 var(--ink);
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
+}
+.nb-btn:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 0 var(--ink);
+}
+.nb-btn:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 0 var(--ink);
+}
+.nb-btn--blue {
+  background: var(--blue);
+  color: #fff;
+}
+.nb-btn--yellow {
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+/* ---------- view toggle (neutral interface control, not a primary CTA) ---------- */
+.nb-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #eceadf;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 3px;
+}
+.nb-toggle button {
+  padding: 7px;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+}
+.nb-toggle button.active {
+  background: #fff;
+  color: var(--blue);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* ---------- notebook card ---------- */
+.nb-card {
+  background: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  box-shadow: 6px 6px 0 0 var(--ink);
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+.nb-card:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 4px 4px 0 0 var(--ink);
+}
+
+/* ---------- panels / inputs (create form, empty state) ---------- */
+.nb-panel {
+  background: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  box-shadow: 6px 6px 0 0 var(--ink);
+}
+.nb-input {
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-family: 'Darker Grotesque', system-ui, sans-serif;
+  font-weight: 600;
+}
+.nb-input:focus {
+  outline: none;
+  box-shadow: 4px 4px 0 0 var(--blue);
+}
