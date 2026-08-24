@@ -37,6 +37,33 @@
       content="The Excalidraw we all love, but as pages in a notebook. Free, in your browser."
     />
     <meta name="twitter:image" content="/og-cover.png" />
+  
+    <!-- SiteBehaviour analytics / heatmaps -->
+    <script type="text/javascript">
+      (function () {
+        try {
+          if (
+            window.location &&
+            window.location.search &&
+            window.location.search.indexOf('capture-sitebehaviour-heatmap') !== -1
+          ) {
+            sessionStorage.setItem('capture-sitebehaviour-heatmap', '_');
+          }
+
+          var sbSiteSecret = '95f146d4-10bd-47a8-ac6a-db2d3f8fd184';
+          window.sitebehaviourTrackingSecret = sbSiteSecret;
+          var scriptElement = document.createElement('script');
+          scriptElement.defer = true;
+          scriptElement.id = 'site-behaviour-script-v2';
+          scriptElement.src =
+            'https://sitebehaviour-cdn.fra1.cdn.digitaloceanspaces.com/index.min.js?sitebehaviour-secret=' +
+            sbSiteSecret;
+          document.head.appendChild(scriptElement);
+        } catch (e) {
+          console.error(e);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
